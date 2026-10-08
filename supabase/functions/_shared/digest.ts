@@ -3,8 +3,6 @@
 import { chat } from './ai.ts'
 import { db, today } from './core.ts'
 
-const LANG: Record<string, string> = { ru: 'Russian', pl: 'Polish', en: 'English' }
-
 export async function generateDigest(companyId: string, force = false): Promise<string | null> {
   const day = today()
   const { data: last } = await db.from('digests').select('day, created_at').eq('company_id', companyId)
@@ -28,12 +26,11 @@ export async function generateDigest(companyId: string, force = false): Promise<
     return `- [${c.action}/${c.source}] ${c.product_id ? (nameOf.get(c.product_id) ?? 'product') + ': ' : ''}${c.title}${body ? ` — ${body}` : ''}`
   })
 
-  const lang = LANG[company.settings?.language ?? 'ru'] ?? 'Russian'
   const content = lines.length
     ? await chat([
       {
         role: 'system',
-        content: `You write the morning digest of a company knowledge base for the whole team. Language: ${lang}. ` +
+        content: `You write the morning digest of a company knowledge base for the whole team. Language: Polish. ` +
           `Format: Markdown, at most 6 short bullets, most important first, concrete values (prices, dates) kept exactly. ` +
           `Group changes of the same product. No greeting, no conclusion, no invented facts.`,
       },
@@ -53,7 +50,7 @@ export async function generateDigest(companyId: string, force = false): Promise<
       user_id: m.user_id,
       company_id: companyId,
       type: 'digest',
-      title: lang === 'Polish' ? 'Poranne podsumowanie' : lang === 'English' ? 'Morning digest' : 'Утренний дайджест',
+      title: 'Poranne podsumowanie',
       body: content.replace(/[#*_`>-]/g, '').replace(/\s+/g, ' ').trim().slice(0, 220),
       link: '/app',
     })))

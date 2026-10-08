@@ -7,18 +7,15 @@ import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import { SessionProvider } from './app/session'
 import { FeedbackProvider } from './components/ui'
-import { I18nProvider } from './lib/i18n'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
-      <I18nProvider>
         <SessionProvider>
           <FeedbackProvider>
             <App />
           </FeedbackProvider>
         </SessionProvider>
-      </I18nProvider>
     </BrowserRouter>
   </StrictMode>,
 )

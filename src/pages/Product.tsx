@@ -9,7 +9,7 @@ import { HistoryList } from '../components/History'
 import { EntryEditor, ImportText, ProductEditor, ProductIcon, SourceTag, StateBadge, useTypeLabels } from '../components/kb'
 import { Markdown } from '../components/Markdown'
 import { Button, cx, Empty, IconBtn, Loading, Menu, MenuItem, Tabs, useFeedback } from '../components/ui'
-import { fmtDate, fmtWhen, useI18n, useT } from '../lib/i18n'
+import { fmtDate, fmtWhen } from '../lib/format'
 import { supabase } from '../lib/supabase'
 import type { Collection, Entry, EntryType, FileRow, HistoryRow, Product } from '../lib/types'
 
@@ -17,8 +17,6 @@ type Tab = 'entries' | 'files' | 'history'
 const ORDER: EntryType[] = ['announcement', 'news', 'price', 'date', 'fact', 'faq', 'link', 'document']
 
 export default function ProductPage() {
-  const t = useT()
-  const { lang } = useI18n()
   const { id } = useParams()
   const [params] = useSearchParams()
   const nav = useNavigate()
@@ -58,7 +56,7 @@ export default function ProductPage() {
 
   if (loading && !data) return <Loading />
   const p = data?.product
-  if (!p) return <Page crumb={t('База знаний', 'Baza wiedzy')}><Empty title={t('Продукт не найден', 'Nie znaleziono produktu')} action={<Link className="btn btn--ghost" to="/app/kb">{t('К базе знаний', 'Do bazy wiedzy')}</Link>} /></Page>
+  if (!p) return <Page crumb="Baza wiedzy"><Empty title="Nie znaleziono produktu" action={<Link className="btn btn--ghost" to="/app/kb">Do bazy wiedzy</Link>} /></Page>
 
   const today = new Date().toISOString().slice(0, 10)
   const expired = (e: Entry) => e.status === 'review' || (!!e.effective_to && e.effective_to < today)
@@ -66,7 +64,7 @@ export default function ProductPage() {
   const subscribe = async () => {
     if (data.subscribed) await supabase.from('subscriptions').delete().eq('product_id', p.id).eq('user_id', profile!.id)
     else await supabase.from('subscriptions').insert({ product_id: p.id, user_id: profile!.id })
-    toast(data.subscribed ? t('Подписка отключена', 'Obserwowanie wyłączone') : t('Вы узнаете о каждом изменении этого продукта', 'Dowiesz się o każdej zmianie tego produktu'))
+    toast(data.subscribed ? 'Obserwowanie wyłączone' : 'Dowiesz się o każdej zmianie tego produktu')
     reload()
   }
   const verifyAll = async () => {
@@ -75,7 +73,7 @@ export default function ProductPage() {
       supabase.from('products').update({ last_verified_at: now, status: 'current' }).eq('id', p.id),
       supabase.from('entries').update({ verified_at: now, status: 'current' }).eq('product_id', p.id).eq('status', 'review'),
     ])
-    toast(t('Отмечено как актуальное', 'Oznaczono jako aktualne'))
+    toast('Oznaczono jako aktualne')
     emitChanged()
   }
   const setOwner = async (owner_id: string | null) => {
@@ -84,13 +82,13 @@ export default function ProductPage() {
     emitChanged()
   }
   const archive = async () => {
-    if (!(await confirm({ title: t('Убрать продукт в архив?', 'Przenieść produkt do archiwum?'), text: t('Он исчезнет из каталога и ответов ИИ. Вернуть можно из истории.', 'Zniknie z katalogu i odpowiedzi AI. Można go przywrócić z historii.'), action: t('В архив', 'Do archiwum') }))) return
+    if (!(await confirm({ title: 'Przenieść produkt do archiwum?', text: 'Zniknie z katalogu i odpowiedzi AI. Można go przywrócić z historii.', action: 'Do archiwum' }))) return
     await supabase.from('products').update({ status: 'archived' }).eq('id', p.id)
     emitChanged()
     nav('/app/kb')
   }
   const removeProduct = async () => {
-    if (!(await confirm({ title: t('Удалить продукт навсегда?', 'Usunąć produkt na zawsze?'), text: t('Вместе с ним удалятся все записи. Это действие нельзя отменить.', 'Razem z nim zostaną usunięte wszystkie wpisy. Tej akcji nie można cofnąć.'), action: t('Удалить', 'Usuń'), danger: true }))) return
+    if (!(await confirm({ title: 'Usunąć produkt na zawsze?', text: 'Razem z nim zostaną usunięte wszystkie wpisy. Tej akcji nie można cofnąć.', action: 'Usuń', danger: true }))) return
     const { error } = await supabase.from('products').delete().eq('id', p.id)
     if (error) return fail(error.message)
     emitChanged()
@@ -104,7 +102,7 @@ export default function ProductPage() {
   }
 
   return (
-    <Page crumb={<><Link to="/app/kb">{t('База знаний', 'Baza wiedzy')}</Link>/<b>{p.name}</b></>}>
+    <Page crumb={<><Link to="/app/kb">Baza wiedzy</Link>/<b>{p.name}</b></>}>
       <header className="phead">
         <ProductIcon icon={p.icon} accent size={64} />
         <div className="phead__main">
@@ -113,15 +111,15 @@ export default function ProductPage() {
           {p.summary && <p>{p.summary}</p>}
         </div>
         <div className="page__actions">
-          <Button icon={data.subscribed ? <BellOff size={17} /> : <Bell size={17} />} onClick={subscribe}>{data.subscribed ? t('Отписаться', 'Nie obserwuj') : t('Подписаться', 'Obserwuj')}</Button>
-          <Button variant="primary" icon={<Plus size={18} />} onClick={() => setEntryEditor({})}>{t('Добавить запись', 'Dodaj wpis')}</Button>
-          <Menu trigger={(_, toggle) => <IconBtn label={t('Ещё', 'Więcej')} onClick={toggle}><MoreHorizontal size={19} /></IconBtn>}>
+          <Button icon={data.subscribed ? <BellOff size={17} /> : <Bell size={17} />} onClick={subscribe}>{data.subscribed ? 'Nie obserwuj' : 'Obserwuj'}</Button>
+          <Button variant="primary" icon={<Plus size={18} />} onClick={() => setEntryEditor({})}>Dodaj wpis</Button>
+          <Menu trigger={(_, toggle) => <IconBtn label="Więcej" onClick={toggle}><MoreHorizontal size={19} /></IconBtn>}>
             {(close) => (
               <>
-                <MenuItem icon={<PenLine size={17} />} onClick={() => { close(); setEditProduct(true) }}>{t('Изменить продукт', 'Edytuj produkt')}</MenuItem>
-                <MenuItem icon={<ClipboardPaste size={17} />} onClick={() => { close(); setImporting(true) }}>{t('Вставить текст → факты', 'Wklej tekst → fakty')}</MenuItem>
-                <MenuItem icon={<Archive size={17} />} onClick={() => { close(); archive() }}>{t('В архив', 'Do archiwum')}</MenuItem>
-                {canManage && <MenuItem danger icon={<Trash2 size={17} />} onClick={() => { close(); removeProduct() }}>{t('Удалить', 'Usuń')}</MenuItem>}
+                <MenuItem icon={<PenLine size={17} />} onClick={() => { close(); setEditProduct(true) }}>Edytuj produkt</MenuItem>
+                <MenuItem icon={<ClipboardPaste size={17} />} onClick={() => { close(); setImporting(true) }}>Wklej tekst → fakty</MenuItem>
+                <MenuItem icon={<Archive size={17} />} onClick={() => { close(); archive() }}>Do archiwum</MenuItem>
+                {canManage && <MenuItem danger icon={<Trash2 size={17} />} onClick={() => { close(); removeProduct() }}>Usuń</MenuItem>}
               </>
             )}
           </Menu>
@@ -131,69 +129,69 @@ export default function ProductPage() {
       <div className="pmeta">
         <Menu align="left" trigger={(_, toggle) => (
           <button type="button" className="pmeta__item" onClick={toggle}>
-            <UserRound size={16} /><span className="muted">{t('Ответственный', 'Odpowiedzialny')}</span>
-            <b>{p.owner_id ? names[p.owner_id] ?? '—' : t('не назначен', 'nie wyznaczono')}</b>
+            <UserRound size={16} /><span className="muted">Odpowiedzialny</span>
+            <b>{p.owner_id ? names[p.owner_id] ?? '—' : 'nie wyznaczono'}</b>
           </button>
         )}>
           {(close) => (
             <>
               {members.map((m) => <MenuItem key={m.user_id} active={m.user_id === p.owner_id} icon={m.user_id === p.owner_id ? <Check size={17} /> : <span style={{ width: 17 }} />} onClick={() => { close(); setOwner(m.user_id) }}>{m.profile.full_name || m.profile.email}</MenuItem>)}
-              {p.owner_id && <><div className="menu__sep" /><MenuItem onClick={() => { close(); setOwner(null) }}>{t('Снять ответственного', 'Usuń odpowiedzialnego')}</MenuItem></>}
+              {p.owner_id && <><div className="menu__sep" /><MenuItem onClick={() => { close(); setOwner(null) }}>Usuń odpowiedzialnego</MenuItem></>}
             </>
           )}
         </Menu>
-        <span className="pmeta__item"><CalendarDays size={16} /><span className="muted">{t('Обновлено', 'Zaktualizowano')}</span><b>{fmtWhen(p.last_change, lang)}</b></span>
-        {p.last_verified_at && <span className="pmeta__item"><ShieldCheck size={16} /><span className="muted">{t('Проверено', 'Sprawdzono')}</span><b>{fmtDate(p.last_verified_at, lang)}</b></span>}
+        <span className="pmeta__item"><CalendarDays size={16} /><span className="muted">Zaktualizowano</span><b>{fmtWhen(p.last_change)}</b></span>
+        {p.last_verified_at && <span className="pmeta__item"><ShieldCheck size={16} /><span className="muted">Sprawdzono</span><b>{fmtDate(p.last_verified_at)}</b></span>}
       </div>
 
       {p.state === 'review' && (
         <div className="notice">
           <div>
-            <b>{p.pending_count > 0 ? t('Есть предложения изменений по этому продукту', 'Są propozycje zmian dla tego produktu') : t('Продукт давно не подтверждали', 'Produkt dawno nie był potwierdzany')}</b>
+            <b>{p.pending_count > 0 ? 'Są propozycje zmian dla tego produktu' : 'Produkt dawno nie był potwierdzany'}</b>
             <span>{p.pending_count > 0
-              ? t('ИИ нашёл новую информацию в почте, календаре или Claude и ждёт вашего решения.', 'AI znalazło nową informację w poczcie, kalendarzu lub Claude i czeka na Twoją decyzję.')
-              : t('Посмотрите записи и подтвердите, что всё по-прежнему верно.', 'Przejrzyj wpisy i potwierdź, że wszystko jest nadal aktualne.')}</span>
+              ? 'AI znalazło nową informację w poczcie, kalendarzu lub Claude i czeka na Twoją decyzję.'
+              : 'Przejrzyj wpisy i potwierdź, że wszystko jest nadal aktualne.'}</span>
           </div>
           {p.pending_count > 0
-            ? <Link to="/app/review" className="btn btn--primary"><Inbox size={17} /><span>{t('Открыть проверку', 'Otwórz sprawdzanie')} · {p.pending_count}</span></Link>
-            : <Button variant="primary" icon={<ShieldCheck size={17} />} onClick={verifyAll}>{t('Всё актуально', 'Wszystko aktualne')}</Button>}
+            ? <Link to="/app/review" className="btn btn--primary"><Inbox size={17} /><span>Otwórz sprawdzanie · {p.pending_count}</span></Link>
+            : <Button variant="primary" icon={<ShieldCheck size={17} />} onClick={verifyAll}>Wszystko aktualne</Button>}
         </div>
       )}
 
       {p.description && <div className="pdesc"><Markdown text={p.description} /></div>}
 
       <Tabs value={tab} onChange={setTab} tabs={[
-        { value: 'entries', label: t('Материалы', 'Materiały'), count: data.entries.length },
-        { value: 'files', label: t('Фото и файлы', 'Zdjęcia i pliki'), count: data.files.length },
-        { value: 'history', label: t('Машина времени', 'Machina czasu'), count: data.history.length },
+        { value: 'entries', label: 'Materiały', count: data.entries.length },
+        { value: 'files', label: 'Zdjęcia i pliki', count: data.files.length },
+        { value: 'history', label: 'Machina czasu', count: data.history.length },
       ]} />
 
       <div className="ptab">
         {tab === 'entries' && (groups.length === 0 ? (
-          <Empty title={t('Пока нет ни одной записи', 'Nie ma jeszcze żadnego wpisu')}
-            text={t('Добавьте цену, дату или факт — или вставьте текст оферты, и ИИ разложит его сам.', 'Dodaj cenę, termin lub fakt — albo wklej tekst oferty, a AI rozłoży go samo.')}
-            action={<div className="row"><Button variant="primary" icon={<Plus size={18} />} onClick={() => setEntryEditor({})}>{t('Добавить запись', 'Dodaj wpis')}</Button><Button icon={<ClipboardPaste size={17} />} onClick={() => setImporting(true)}>{t('Вставить текст', 'Wklej tekst')}</Button></div>} />
+          <Empty title="Nie ma jeszcze żadnego wpisu"
+            text="Dodaj cenę, termin lub fakt — albo wklej tekst oferty, a AI rozłoży go samo."
+            action={<div className="row"><Button variant="primary" icon={<Plus size={18} />} onClick={() => setEntryEditor({})}>Dodaj wpis</Button><Button icon={<ClipboardPaste size={17} />} onClick={() => setImporting(true)}>Wklej tekst</Button></div>} />
         ) : groups.map(([type, list]) => (
           <section key={type} className="egroup">
             <h3 className="eyebrow">{types[type]} · {list.length}</h3>
             {list.map((e) => (
               <article key={e.id} id={`e-${e.id}`} className={cx('entry', highlight === e.id && 'is-hit', expired(e) && 'is-stale')}>
                 <div className="entry__main">
-                  <h4>{e.title}{e.importance >= 2 && <span className="entry__imp">{e.importance === 3 ? t('Срочно', 'Pilne') : t('Важно', 'Ważne')}</span>}</h4>
+                  <h4>{e.title}{e.importance >= 2 && <span className="entry__imp">{e.importance === 3 ? 'Pilne' : 'Ważne'}</span>}</h4>
                   {e.body && <p>{e.body}</p>}
                   <div className="entry__meta">
                     {(e.effective_from || e.effective_to) && (
-                      <span><CalendarDays size={13} />{e.effective_from && `${t('с', 'od')} ${fmtDate(e.effective_from, lang)}`}{e.effective_to && ` ${t('до', 'do')} ${fmtDate(e.effective_to, lang)}`}</span>
+                      <span><CalendarDays size={13} />{e.effective_from && `${'od'} ${fmtDate(e.effective_from)}`}{e.effective_to && ` ${'do'} ${fmtDate(e.effective_to)}`}</span>
                     )}
                     <SourceTag source={e.source} label={e.source_label} />
-                    <span>{fmtWhen(e.updated_at, lang)}</span>
-                    {expired(e) && <span className="entry__stale">{t('нужно проверить', 'do sprawdzenia')}</span>}
+                    <span>{fmtWhen(e.updated_at)}</span>
+                    {expired(e) && <span className="entry__stale">do sprawdzenia</span>}
                   </div>
                 </div>
                 <div className="entry__acts">
-                  {expired(e) && <IconBtn label={t('Подтвердить: актуально', 'Potwierdź: aktualne')} onClick={() => entryAction(e, 'verify')}><ShieldCheck size={17} /></IconBtn>}
-                  <IconBtn label={t('Изменить', 'Edytuj')} onClick={() => setEntryEditor({ entry: e })}><PenLine size={16} /></IconBtn>
-                  <IconBtn label={t('В архив', 'Do archiwum')} onClick={() => entryAction(e, 'archive')}><Archive size={16} /></IconBtn>
+                  {expired(e) && <IconBtn label="Potwierdź: aktualne" onClick={() => entryAction(e, 'verify')}><ShieldCheck size={17} /></IconBtn>}
+                  <IconBtn label="Edytuj" onClick={() => setEntryEditor({ entry: e })}><PenLine size={16} /></IconBtn>
+                  <IconBtn label="Do archiwum" onClick={() => entryAction(e, 'archive')}><Archive size={16} /></IconBtn>
                 </div>
               </article>
             ))}
@@ -204,7 +202,7 @@ export default function ProductPage() {
 
         {tab === 'history' && (data.history.length
           ? <HistoryList rows={data.history} people={names} onChange={reload} />
-          : <Empty title={t('История пуста', 'Historia jest pusta')} />)}
+          : <Empty title="Historia jest pusta" />)}
       </div>
 
       <ProductEditor open={editProduct} product={p} collections={data.collections} onClose={() => setEditProduct(false)} />

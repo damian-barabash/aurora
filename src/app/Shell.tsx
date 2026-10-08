@@ -1,13 +1,13 @@
 import {
   Bell, BookOpen, Building2, Check, ChevronDown, CircleHelp, Folder, Inbox, LayoutGrid, Library, LogOut, Megaphone, Menu as MenuIcon,
-  MessageSquare, PanelLeft, Paperclip, Pin, Plug, Plus, Search, Settings, SlidersHorizontal, Sparkles, Sunrise, Users, ArrowUpRight, Languages,
+  MessageSquare, PanelLeft, Paperclip, Pin, Plug, Plus, Search, Settings, SlidersHorizontal, Sparkles, Sunrise, Users, ArrowUpRight,
 } from 'lucide-react'
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { Mark, Wordmark } from '../brand/Logo'
 import { Avatar, Button, cx, Empty, Field, IconBtn, Menu, MenuItem, Modal, useFeedback } from '../components/ui'
-import { fmtWhen, useI18n, useT } from '../lib/i18n'
+import { fmtWhen } from '../lib/format'
 import { api, supabase } from '../lib/supabase'
 import type { Chat, Collection, Notification } from '../lib/types'
 import { Onboarding } from './Onboarding'
@@ -34,7 +34,6 @@ export function useChanged(cb: () => void) {
 }
 
 export function Shell() {
-  const t = useT()
   const { loading, session, profile, company, companies } = useSession()
   const nav = useNavigate()
   const loc = useLocation()
@@ -75,14 +74,14 @@ export function Shell() {
     const g = params.get('google')
     if (!g) return
     if (g === 'connected') {
-      toast(t('Почта и календарь подключены. Первые письма уже разбираются.', 'Poczta i kalendarz podłączone. Pierwsze wiadomości są już analizowane.'))
+      toast('Poczta i kalendarz podłączone. Pierwsze wiadomości są już analizowane.')
       setOnboardingStep('claude')
-    } else toast(`${t('Не удалось подключить Google', 'Nie udało się podłączyć Google')}: ${params.get('reason') ?? ''}`, 'error')
+    } else toast(`${'Nie udało się podłączyć Google'}: ${params.get('reason') ?? ''}`, 'error')
     params.delete('google')
     params.delete('reason')
     setParams(params, { replace: true })
     emitChanged()
-  }, [params, setParams, toast, t])
+  }, [params, setParams, toast])
 
   const ctx = useMemo(() => ({ chats, reloadChats, pending, reloadCounts }), [chats, reloadChats, pending, reloadCounts])
 
@@ -98,7 +97,7 @@ export function Shell() {
         <div className="shell__scrim" onClick={() => setDrawer(false)} />
         <main className="shell__main">
           <header className="topbar">
-            <IconBtn label={t('Меню', 'Menu')} className="topbar__burger" onClick={() => setDrawer(true)}><MenuIcon size={20} /></IconBtn>
+            <IconBtn label="Menu" className="topbar__burger" onClick={() => setDrawer(true)}><MenuIcon size={20} /></IconBtn>
             <div id="crumb" className="topbar__crumb" />
             <div className="topbar__right">
               <Bells />
@@ -116,18 +115,17 @@ export function Shell() {
 }
 
 function NoCompany() {
-  const t = useT()
   const { profile } = useSession()
   const [open, setOpen] = useState(false)
   return (
     <div className="page">
       <Empty
         icon={<Building2 size={24} />}
-        title={profile?.is_moderator ? t('Создайте первую фирму', 'Utwórz pierwszą firmę') : t('Вас ещё не добавили в фирму', 'Nie dodano Cię jeszcze do firmy')}
+        title={profile?.is_moderator ? 'Utwórz pierwszą firmę' : 'Nie dodano Cię jeszcze do firmy'}
         text={profile?.is_moderator
-          ? t('Фирма — отдельная база знаний со своими продуктами, брендом и командой.', 'Firma to osobna baza wiedzy z własnymi produktami, marką i zespołem.')
-          : t('Попросите администратора добавить ваш аккаунт.', 'Poproś administratora o dodanie Twojego konta.')}
-        action={profile?.is_moderator && <Button variant="accent" icon={<Plus size={18} />} onClick={() => setOpen(true)}>{t('Создать фирму', 'Utwórz firmę')}</Button>}
+          ? 'Firma to osobna baza wiedzy z własnymi produktami, marką i zespołem.'
+          : 'Poproś administratora o dodanie Twojego konta.'}
+        action={profile?.is_moderator && <Button variant="accent" icon={<Plus size={18} />} onClick={() => setOpen(true)}>Utwórz firmę</Button>}
       />
       <CreateCompany open={open} onClose={() => setOpen(false)} />
     </div>
@@ -150,9 +148,7 @@ const Crumb = ({ slot, children }: { slot: HTMLElement; children: ReactNode }) =
 // ───────── боковая панель ─────────
 
 function Sidebar({ collapsed, onCollapse }: { collapsed: boolean; onCollapse(): void }) {
-  const t = useT()
-  const { lang, setLang } = useI18n()
-  const { profile, canManage, role, signOut, patchProfile } = useSession()
+  const { profile, canManage, role, signOut } = useSession()
   const { chats, pending } = usePanel()
   const loc = useLocation()
   const nav = useNavigate()
@@ -161,22 +157,22 @@ function Sidebar({ collapsed, onCollapse }: { collapsed: boolean; onCollapse(): 
   const inKb = section === 'kb' || section === 'brand'
 
   const items = [
-    { to: '/app', end: true, icon: <Sunrise size={20} />, label: t('Сегодня', 'Dzisiaj') },
-    { to: '/app/chat', icon: <MessageSquare size={20} />, label: t('Чаты', 'Czaty'), count: chats.length || undefined },
-    { to: '/app/kb', icon: <Library size={20} />, label: t('База знаний', 'Baza wiedzy'), also: 'brand' },
-    { to: '/app/news', icon: <Megaphone size={20} />, label: t('Коммуникаты', 'Komunikaty') },
-    { to: '/app/review', icon: <Inbox size={20} />, label: t('Проверка', 'Do sprawdzenia'), count: pending || undefined, hot: pending > 0 },
-    { to: '/app/files', icon: <Paperclip size={20} />, label: t('Файлы', 'Pliki') },
+    { to: '/app', end: true, icon: <Sunrise size={20} />, label: 'Dzisiaj' },
+    { to: '/app/chat', icon: <MessageSquare size={20} />, label: 'Czaty', count: chats.length || undefined },
+    { to: '/app/kb', icon: <Library size={20} />, label: 'Baza wiedzy', also: 'brand' },
+    { to: '/app/news', icon: <Megaphone size={20} />, label: 'Komunikaty' },
+    { to: '/app/review', icon: <Inbox size={20} />, label: 'Do sprawdzenia', count: pending || undefined, hot: pending > 0 },
+    { to: '/app/files', icon: <Paperclip size={20} />, label: 'Pliki' },
   ]
   const manage = [
-    { to: '/app/integrations', icon: <Plug size={18} />, label: t('Интеграции', 'Integracje') },
+    { to: '/app/integrations', icon: <Plug size={18} />, label: 'Integracje' },
     ...(canManage ? [
-      { to: '/app/team', icon: <Users size={18} />, label: t('Команда', 'Zespół') },
-      { to: '/app/gaps', icon: <CircleHelp size={18} />, label: t('Пробелы в знаниях', 'Luki w wiedzy') },
+      { to: '/app/team', icon: <Users size={18} />, label: 'Zespół' },
+      { to: '/app/gaps', icon: <CircleHelp size={18} />, label: 'Luki w wiedzy' },
     ] : []),
-    { to: '/app/settings', icon: <Settings size={18} />, label: t('Настройки', 'Ustawienia') },
+    { to: '/app/settings', icon: <Settings size={18} />, label: 'Ustawienia' },
   ]
-  const roleLabel = role === 'moderator' ? t('Модератор', 'Moderator') : role === 'admin' ? t('Администратор', 'Administrator') : t('Сотрудник', 'Pracownik')
+  const roleLabel = role === 'moderator' ? 'Moderator' : role === 'admin' ? 'Administrator' : 'Pracownik'
 
   return (
     <aside className="side">
@@ -184,7 +180,7 @@ function Sidebar({ collapsed, onCollapse }: { collapsed: boolean; onCollapse(): 
         <Link to="/app" className="side__logo" aria-label="AURORA">
           {collapsed ? <Mark size={26} /> : <Wordmark size={24} />}
         </Link>
-        <IconBtn label={t('Свернуть меню', 'Zwiń menu')} className="side__collapse" onClick={onCollapse}><PanelLeft size={18} /></IconBtn>
+        <IconBtn label="Zwiń menu" className="side__collapse" onClick={onCollapse}><PanelLeft size={18} /></IconBtn>
       </div>
 
       <nav className="side__nav">
@@ -201,7 +197,7 @@ function Sidebar({ collapsed, onCollapse }: { collapsed: boolean; onCollapse(): 
       <div className="side__ctx">
         {inChat ? <ChatList /> : inKb ? <KbNav /> : (
           <>
-            <div className="side__label">{t('Управление', 'Zarządzanie')}</div>
+            <div className="side__label">Zarządzanie</div>
             {manage.map((m) => (
               <NavLink key={m.to} to={m.to} title={m.label} className={({ isActive }) => cx('subi', isActive && 'is-on')}>
                 {m.icon}<span>{m.label}</span>
@@ -229,12 +225,7 @@ function Sidebar({ collapsed, onCollapse }: { collapsed: boolean; onCollapse(): 
               <MenuItem key={m.to} icon={m.icon} onClick={() => { close(); nav(m.to) }}>{m.label}</MenuItem>
             ))}
             {(inChat || inKb) && <div className="menu__sep" />}
-            <MenuItem icon={<Languages size={18} />} onClick={() => {
-              const next = lang === 'ru' ? 'pl' : 'ru'
-              setLang(next)
-              patchProfile({ locale: next })
-            }}>{lang === 'ru' ? 'Polski' : 'Русский'}</MenuItem>
-            <MenuItem icon={<LogOut size={18} />} onClick={() => { close(); signOut() }}>{t('Выйти', 'Wyloguj')}</MenuItem>
+            <MenuItem icon={<LogOut size={18} />} onClick={() => { close(); signOut() }}>Wyloguj</MenuItem>
           </>
         )}
       </Menu>
@@ -243,7 +234,6 @@ function Sidebar({ collapsed, onCollapse }: { collapsed: boolean; onCollapse(): 
 }
 
 function ChatList() {
-  const t = useT()
   const { chats } = usePanel()
   const [q, setQ] = useState('')
   const loc = useLocation()
@@ -253,28 +243,28 @@ function ChatList() {
     const now = Date.now()
     const day = new Date().setHours(0, 0, 0, 0)
     const out: [string, Chat[]][] = [
-      [t('Закреплено', 'Przypięte'), list.filter((c) => c.pinned)],
-      [t('Сегодня', 'Dzisiaj'), list.filter((c) => !c.pinned && +new Date(c.updated_at) >= day)],
-      [t('На этой неделе', 'W tym tygodniu'), list.filter((c) => !c.pinned && +new Date(c.updated_at) < day && now - +new Date(c.updated_at) < 7 * 86400000)],
-      [t('Раньше', 'Wcześniej'), list.filter((c) => !c.pinned && now - +new Date(c.updated_at) >= 7 * 86400000)],
+      ['Przypięte', list.filter((c) => c.pinned)],
+      ['Dzisiaj', list.filter((c) => !c.pinned && +new Date(c.updated_at) >= day)],
+      ['W tym tygodniu', list.filter((c) => !c.pinned && +new Date(c.updated_at) < day && now - +new Date(c.updated_at) < 7 * 86400000)],
+      ['Wcześniej', list.filter((c) => !c.pinned && now - +new Date(c.updated_at) >= 7 * 86400000)],
     ]
     return out.filter(([, items]) => items.length)
-  }, [chats, q, t])
+  }, [chats, q])
   return (
     <>
       <div className="search side__search">
         <Search size={18} />
-        <input className="input" placeholder={t('Поиск по чатам', 'Szukaj w czatach')} value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className="input" placeholder="Szukaj w czatach" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
       <Link to="/app/chat" className="btn btn--accent btn--lg side__new">
-        <Plus size={20} /><span>{t('Новый чат', 'Nowy czat')}</span><ArrowUpRight size={18} />
+        <Plus size={20} /><span>Nowy czat</span><ArrowUpRight size={18} />
       </Link>
       {groups.map(([label, items]) => (
         <div key={label}>
           <div className="side__label">{label}</div>
           {items.map((c) => (
             <Link key={c.id} to={`/app/chat/${c.id}`} className={cx('chati', c.id === active && 'is-on')} title={c.title}>
-              <span className="truncate">{c.title || t('Без названия', 'Bez tytułu')}</span>
+              <span className="truncate">{c.title || 'Bez tytułu'}</span>
               {c.pinned && <Pin size={13} />}
             </Link>
           ))}
@@ -285,7 +275,6 @@ function ChatList() {
 }
 
 function KbNav() {
-  const t = useT()
   const { company } = useSession()
   const loc = useLocation()
   const [params] = useSearchParams()
@@ -309,19 +298,19 @@ function KbNav() {
   const icon = (name: string) => name === 'grid' ? <LayoutGrid size={18} /> : name === 'book' ? <BookOpen size={18} /> : <Folder size={18} />
   return (
     <>
-      <div className="side__label">{t('Коллекции', 'Kolekcje')}</div>
+      <div className="side__label">Kolekcje</div>
       <Link to="/app/kb" className={cx('subi', onList && !current && 'is-on is-soft')}>
-        <Folder size={18} /><span>{t('Все продукты', 'Wszystkie produkty')}</span><i>{counts.all ?? 0}</i>
+        <Folder size={18} /><span>Wszystkie produkty</span><i>{counts.all ?? 0}</i>
       </Link>
       {collections.map((c) => (
         <Link key={c.id} to={`/app/kb?c=${c.id}`} className={cx('subi', onList && current === c.id && 'is-on is-soft')}>
           {icon(c.icon)}<span>{c.name}</span><i>{counts[c.id] ?? 0}</i>
         </Link>
       ))}
-      <div className="side__label">{t('О бренде', 'O marce')}</div>
+      <div className="side__label">O marce</div>
       {[
-        ['strategy', <BookOpen size={18} />, t('Стратегия бренда', 'Strategia marki')],
-        ['identity', <Sparkles size={18} />, t('Айдентика', 'Identyfikacja')],
+        ['strategy', <BookOpen size={18} />, 'Strategia marki'],
+        ['identity', <Sparkles size={18} />, 'Identyfikacja'],
         ['tone', <MessageSquare size={18} />, 'Tone of voice'],
       ].map(([key, ico, label]) => (
         <NavLink key={key as string} to={`/app/brand/${key}`} className={({ isActive }) => cx('subi', isActive && 'is-on is-soft')}>
@@ -335,7 +324,6 @@ function KbNav() {
 // ───────── верхняя полоса: фирма и уведомления ─────────
 
 export function CreateCompany({ open, onClose }: { open: boolean; onClose(): void }) {
-  const t = useT()
   const { reload, setCompany } = useSession()
   const { fail, toast } = useFeedback()
   const nav = useNavigate()
@@ -348,7 +336,7 @@ export function CreateCompany({ open, onClose }: { open: boolean; onClose(): voi
       const { company } = await api<{ company: { id: string } }>('create_company', { name, website })
       await reload()
       setCompany(company.id)
-      toast(t('Фирма создана', 'Firma utworzona'))
+      toast('Firma utworzona')
       setName('')
       setWebsite('')
       onClose()
@@ -359,12 +347,12 @@ export function CreateCompany({ open, onClose }: { open: boolean; onClose(): voi
     setBusy(false)
   }
   return (
-    <Modal open={open} onClose={onClose} title={t('Новая фирма', 'Nowa firma')}
-      subtitle={t('У каждой фирмы своя база знаний, бренд и команда.', 'Każda firma ma własną bazę wiedzy, markę i zespół.')}
-      footer={<><Button onClick={onClose}>{t('Отмена', 'Anuluj')}</Button><Button variant="primary" busy={busy} disabled={name.trim().length < 2} onClick={submit}>{t('Создать', 'Utwórz')}</Button></>}>
+    <Modal open={open} onClose={onClose} title="Nowa firma"
+      subtitle="Każda firma ma własną bazę wiedzy, markę i zespół."
+      footer={<><Button onClick={onClose}>Anuluj</Button><Button variant="primary" busy={busy} disabled={name.trim().length < 2} onClick={submit}>Utwórz</Button></>}>
       <div className="form">
-        <Field label={t('Название', 'Nazwa')}><input className="input" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Fastline Racing Academy" /></Field>
-        <Field label={t('Сайт', 'Strona WWW')} hint={t('Необязательно. С сайта можно будет импортировать продукты.', 'Opcjonalnie. Ze strony można będzie zaimportować produkty.')}>
+        <Field label="Nazwa"><input className="input" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Fastline Racing Academy" /></Field>
+        <Field label="Strona WWW" hint="Opcjonalnie. Ze strony można będzie zaimportować produkty.">
           <input className="input" value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://" />
         </Field>
       </div>
@@ -373,7 +361,6 @@ export function CreateCompany({ open, onClose }: { open: boolean; onClose(): voi
 }
 
 function CompanySwitch() {
-  const t = useT()
   const { company, companies, setCompany, profile } = useSession()
   const [create, setCreate] = useState(false)
   const nav = useNavigate()
@@ -390,7 +377,7 @@ function CompanySwitch() {
       )}>
         {(close) => (
           <>
-            <div className="menu__label">{t('Фирмы', 'Firmy')}</div>
+            <div className="menu__label">Firmy</div>
             {companies.map((c) => (
               <MenuItem key={c.id} active={c.id === company.id} icon={c.id === company.id ? <Check size={18} /> : <span style={{ width: 18 }} />}
                 onClick={() => { close(); setCompany(c.id); nav('/app') }}>{c.name}</MenuItem>
@@ -398,7 +385,7 @@ function CompanySwitch() {
             {profile?.is_moderator && (
               <>
                 <div className="menu__sep" />
-                <MenuItem icon={<Plus size={18} />} onClick={() => { close(); setCreate(true) }}>{t('Создать фирму', 'Utwórz firmę')}</MenuItem>
+                <MenuItem icon={<Plus size={18} />} onClick={() => { close(); setCreate(true) }}>Utwórz firmę</MenuItem>
               </>
             )}
           </>
@@ -410,8 +397,6 @@ function CompanySwitch() {
 }
 
 function Bells() {
-  const t = useT()
-  const { lang } = useI18n()
   const { company, profile } = useSession()
   const nav = useNavigate()
   const [items, setItems] = useState<Notification[]>([])
@@ -435,20 +420,20 @@ function Bells() {
   if (!company) return null
   return (
     <Menu trigger={(open, toggle) => (
-      <IconBtn label={t('Уведомления', 'Powiadomienia')} className={cx('bell', open && 'is-open')} onClick={() => { toggle(); if (open) markRead() }}>
+      <IconBtn label="Powiadomienia" className={cx('bell', open && 'is-open')} onClick={() => { toggle(); if (open) markRead() }}>
         <Bell size={19} />
         {unread > 0 && <i>{unread > 9 ? '9+' : unread}</i>}
       </IconBtn>
     )}>
       {(close) => (
         <div className="notifs">
-          <div className="menu__label">{t('Уведомления', 'Powiadomienia')}</div>
-          {!items.length && <p className="notifs__empty">{t('Пока тихо. Подпишитесь на продукты, чтобы узнавать об изменениях.', 'Na razie cicho. Obserwuj produkty, aby wiedzieć o zmianach.')}</p>}
+          <div className="menu__label">Powiadomienia</div>
+          {!items.length && <p className="notifs__empty">Na razie cicho. Obserwuj produkty, aby wiedzieć o zmianach.</p>}
           {items.map((n) => (
             <button key={n.id} type="button" className={cx('notif', !n.read_at && 'is-new')} onClick={() => { close(); markRead(); if (n.link) nav(n.link) }}>
               <b>{n.title}</b>
               {n.body && <span>{n.body}</span>}
-              <small>{fmtWhen(n.created_at, lang)}</small>
+              <small>{fmtWhen(n.created_at)}</small>
             </button>
           ))}
         </div>

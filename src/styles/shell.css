@@ -189,3 +189,4 @@
   .page__head h1 { font-size: 30px; }
   .cswitch { max-width: 150px; }
 }
+.navi.is-on .navi__count.is-hot { color: #000; }

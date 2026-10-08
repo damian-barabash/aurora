@@ -4,7 +4,6 @@ import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { AppIcon } from '../brand/Logo'
 import { Button, cx, IconBtn } from '../components/ui'
-import { useT } from '../lib/i18n'
 import { ClaudeSetup, useConnections, useGoogleConnect } from './connect'
 import { useSession } from './session'
 
@@ -16,7 +15,6 @@ const WEEK = 7 * 86400000
  * после этого подключения остаются в «Интеграциях».
  */
 export function Onboarding({ step, setStep }: { step: 'mail' | 'claude' | null; setStep(s: 'mail' | 'claude' | null): void }) {
-  const t = useT()
   const { profile, patchProfile } = useSession()
   const { google, tokens, configured, ready, reload } = useConnections()
   const { connect, busy } = useGoogleConnect()
@@ -74,8 +72,8 @@ export function Onboarding({ step, setStep }: { step: 'mail' | 'claude' | null; 
         <button type="button" className="qs" onClick={() => setStep(mailDone ? 'claude' : 'mail')}>
           <span className="qs__ring" style={{ ['--p' as string]: doneCount / 2 }}><Sparkles size={16} /></span>
           <span className="qs__text">
-            <b>{t('Быстрый старт', 'Szybki start')}</b>
-            <small>{mailDone ? t('Осталось подключить Claude', 'Zostało podłączyć Claude') : t('Подключите почту — 1 клик', 'Podłącz pocztę — 1 klik')}</small>
+            <b>Szybki start</b>
+            <small>{mailDone ? 'Zostało podłączyć Claude' : 'Podłącz pocztę — 1 klik'}</small>
           </span>
           <span className="qs__n">{doneCount}/2</span>
         </button>,
@@ -85,10 +83,10 @@ export function Onboarding({ step, setStep }: { step: 'mail' | 'claude' | null; 
       {step && createPortal(
         <div className={cx('modal ob', flying && 'is-flying')} onMouseDown={(e) => e.target === e.currentTarget && close()}>
           <div className="modal__box ob__box" ref={box} role="dialog" aria-modal>
-            <IconBtn label={t('Позже', 'Później')} className="modal__close" onClick={close}><X size={18} /></IconBtn>
+            <IconBtn label="Później" className="modal__close" onClick={close}><X size={18} /></IconBtn>
             <div className="ob__steps">
               <span className={cx('ob__step', step === 'mail' && 'is-on', mailDone && 'is-done')} onClick={() => setStep('mail')}>
-                <i>{mailDone ? <Check size={13} /> : 1}</i>{t('Почта', 'Poczta')}
+                <i>{mailDone ? <Check size={13} /> : 1}</i>Poczta
               </span>
               <span className="ob__line" />
               <span className={cx('ob__step', step === 'claude' && 'is-on', claudeDone && 'is-done')} onClick={() => setStep('claude')}>
@@ -99,42 +97,40 @@ export function Onboarding({ step, setStep }: { step: 'mail' | 'claude' | null; 
             {step === 'mail' ? (
               <div className="ob__pane" key="mail">
                 <AppIcon size={56} />
-                <h2>{mailDone ? t('Почта подключена', 'Poczta podłączona') : t('Подключите рабочую почту', 'Podłącz służbową pocztę')}</h2>
+                <h2>{mailDone ? 'Poczta podłączona' : 'Podłącz służbową pocztę'}</h2>
                 <p className="ob__lead">
-                  {t('AURORA сама находит в письмах подтверждённые изменения — новые цены, даты, условия — и обновляет базу знаний. Вам не нужно ничего вносить руками.',
-                    'AURORA sama znajduje w wiadomościach potwierdzone zmiany — nowe ceny, terminy, warunki — i aktualizuje bazę wiedzy. Nie musisz niczego wpisywać ręcznie.')}
+                  AURORA sama znajduje w wiadomościach potwierdzone zmiany — nowe ceny, terminy, warunki — i aktualizuje bazę wiedzy. Nie musisz niczego wpisywać ręcznie.
                 </p>
                 <ul className="ob__facts">
-                  <li><Mail size={18} /><span><b>{t('Только чтение', 'Tylko odczyt')}</b>{t('AURORA не отправляет и не удаляет письма.', 'AURORA nie wysyła i nie usuwa wiadomości.')}</span></li>
-                  <li><EyeOff size={18} /><span><b>{t('Письма не хранятся', 'Wiadomości nie są przechowywane')}</b>{t('В базу попадает только факт о продукте, без цитат и имён.', 'Do bazy trafia tylko fakt o produkcie, bez cytatów i nazwisk.')}</span></li>
-                  <li><Lock size={18} /><span><b>{t('Личное остаётся личным', 'Prywatne zostaje prywatne')}</b>{t('Частная переписка, зарплаты, HR и переговоры отбрасываются.', 'Prywatna korespondencja, wynagrodzenia, HR i negocjacje są odrzucane.')}</span></li>
-                  <li><Calendar size={18} /><span><b>{t('Заодно календарь', 'Przy okazji kalendarz')}</b>{t('Даты запусков и событий продуктов подтянутся сами.', 'Daty premier i wydarzeń produktów pojawią się same.')}</span></li>
+                  <li><Mail size={18} /><span><b>Tylko odczyt</b>AURORA nie wysyła i nie usuwa wiadomości.</span></li>
+                  <li><EyeOff size={18} /><span><b>Wiadomości nie są przechowywane</b>Do bazy trafia tylko fakt o produkcie, bez cytatów i nazwisk.</span></li>
+                  <li><Lock size={18} /><span><b>Prywatne zostaje prywatne</b>Prywatna korespondencja, wynagrodzenia, HR i negocjacje są odrzucane.</span></li>
+                  <li><Calendar size={18} /><span><b>Przy okazji kalendarz</b>Daty premier i wydarzeń produktów pojawią się same.</span></li>
                 </ul>
                 {mailDone ? (
-                  <Button variant="primary" size="lg" block onClick={() => setStep('claude')}>{t('Дальше: подключить Claude', 'Dalej: podłącz Claude')}</Button>
+                  <Button variant="primary" size="lg" block onClick={() => setStep('claude')}>Dalej: podłącz Claude</Button>
                 ) : configured ? (
-                  <Button variant="accent" size="lg" block busy={busy} onClick={connect} icon={<GoogleG />}>{t('Подключить Google — 1 клик', 'Podłącz Google — 1 klik')}</Button>
+                  <Button variant="accent" size="lg" block busy={busy} onClick={connect} icon={<GoogleG />}>Podłącz Google — 1 klik</Button>
                 ) : (
                   <div className="ob__wait">
-                    <b>{t('Google ещё не настроен', 'Google nie jest jeszcze skonfigurowany')}</b>
+                    <b>Google nie jest jeszcze skonfigurowany</b>
                     {profile.is_moderator
-                      ? <span>{t('Вставьте Client ID и Secret — это 5 минут, один раз для всей платформы.', 'Wklej Client ID i Secret — to 5 minut, raz dla całej platformy.')} <Link to="/app/integrations" onClick={close}>{t('Открыть инструкцию', 'Otwórz instrukcję')} →</Link></span>
-                      : <span>{t('Модератор платформы завершит настройку — кнопка подключения появится здесь.', 'Moderator platformy dokończy konfigurację — przycisk pojawi się tutaj.')}</span>}
+                      ? <span>Wklej Client ID i Secret — to 5 minut, raz dla całej platformy. <Link to="/app/integrations" onClick={close}>Otwórz instrukcję →</Link></span>
+                      : <span>Moderator platformy dokończy konfigurację — przycisk pojawi się tutaj.</span>}
                   </div>
                 )}
-                {!mailDone && <button type="button" className="ob__skip" onClick={() => setStep('claude')}>{t('Сначала подключить Claude', 'Najpierw podłącz Claude')}</button>}
+                {!mailDone && <button type="button" className="ob__skip" onClick={() => setStep('claude')}>Najpierw podłącz Claude</button>}
               </div>
             ) : (
               <div className="ob__pane" key="claude">
                 <AppIcon size={56} tone="black" />
-                <h2>{t('Подключите Claude', 'Podłącz Claude')}</h2>
+                <h2>Podłącz Claude</h2>
                 <p className="ob__lead">
-                  {t('Claude будет отвечать по вашей базе знаний, а когда узнает новое о продуктах — спросит, обновить ли это в AURORA.',
-                    'Claude będzie odpowiadać na podstawie Twojej bazy wiedzy, a gdy dowie się czegoś nowego o produktach — zapyta, czy zaktualizować to w AURORA.')}
+                  Claude będzie odpowiadać na podstawie Twojej bazy wiedzy, a gdy dowie się czegoś nowego o produktach — zapyta, czy zaktualizować to w AURORA.
                 </p>
                 <ClaudeSetup tokens={tokens} onChange={reload} compact />
                 <Button variant={claudeDone ? 'primary' : 'ghost'} size="lg" block onClick={claudeDone ? finishClaude : close}>
-                  {claudeDone ? t('Готово', 'Gotowe') : t('Напомнить позже', 'Przypomnij później')}
+                  {claudeDone ? 'Gotowe' : 'Przypomnij później'}
                 </Button>
               </div>
             )}

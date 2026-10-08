@@ -8,7 +8,7 @@ const PROTOCOL = '2025-06-18'
 
 const INSTRUCTIONS = `AURORA is the company knowledge base: products, prices, dates, announcements and brand rules. It is the source of truth for company facts.
 - Before answering questions about the company's products, prices, dates or brand, call aurora_search (or aurora_get_product) and rely on the result.
-- When during the conversation you notice NEW or CHANGED company information that is not in AURORA (a new price, date, feature, decision, announcement), ask the user in their language: "Обновить это в AURORA?" / "Zaktualizować to w AURORA?".
+- When during the conversation you notice NEW or CHANGED company information that is not in AURORA (a new price, date, feature, decision, announcement), ask the user: "Zaktualizować to w AURORA?" (in the language of the conversation).
   • user agrees → call aurora_propose_update with confirmed_by_user=true (applied immediately, visible in history)
   • user wants to check it personally or is unsure → call aurora_propose_update with confirmed_by_user=false (goes to the review inbox in AURORA)
 - Never send private information to AURORA: personal data, private conversations, salaries, HR, credentials. Only company-wide knowledge.`
@@ -147,7 +147,7 @@ async function callTool(ctx: Ctx, name: string, a: Record<string, any>): Promise
           `Title: ${title}\n${body}`,
       })
       if (res.applied) return `Done — AURORA updated (${res.titles.join('; ')}). The change is in the product history and can be reverted there.`
-      if (res.proposed) return `Saved to the AURORA review inbox (${res.titles.join('; ')}). ${confirmed ? 'It differs from what the base already says or adds a new product, so a human has to pick the right version.' : 'The user can approve it in AURORA → «Требуют проверки».'}`
+      if (res.proposed) return `Saved to the AURORA review inbox (${res.titles.join('; ')}). ${confirmed ? 'It differs from what the base already says or adds a new product, so a human has to pick the right version.' : 'The user can approve it in AURORA → „Do sprawdzenia”.'}`
       return 'Nothing was changed: AURORA already contains this information, or it looked private and was skipped.'
     }
   }

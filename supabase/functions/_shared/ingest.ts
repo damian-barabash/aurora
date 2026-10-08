@@ -67,7 +67,7 @@ WHAT TO EXTRACT: product descriptions and features, prices and price changes, da
 - "conflict": the same subject but a different value and it is NOT clear which one is right → give "existing" id
 - "new": nothing similar exists
 "product": exact name from PRODUCTS when the item is about one of them; a short new product name when the text clearly describes a company product that is not on the list (add "product_summary", one sentence); null for general company knowledge.
-"title": short (max 80 chars), specific. "body": 1–4 full sentences with all concrete values (numbers, currency, dates). Write title/body in the language of the source text.
+"title": short (max 80 chars), specific. "body": 1–4 full sentences with all concrete values (numbers, currency, dates). Write title, body and evidence in Polish (keep product names and proper nouns unchanged).
 "evidence": one neutral sentence explaining where this comes from, WITHOUT names of private people and without quoting.
 Dates as YYYY-MM-DD. If the year is missing, choose the nearest future date relative to TODAY.
 

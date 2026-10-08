@@ -49,8 +49,8 @@ Deno.serve(async (req) => {
 
     const context = sources.map((e, i) =>
       `[${i + 1}] ${e.product_name ? `(${e.product_name}) ` : ''}${e.title}\n${e.body}` +
-      `${e.effective_from ? `\nДействует с: ${e.effective_from}` : ''}${e.effective_to ? ` до: ${e.effective_to}` : ''}` +
-      `\nОбновлено: ${String(e.updated_at).slice(0, 10)}${e.status === 'review' ? ' (требует проверки)' : ''}`
+      `${e.effective_from ? `\nValid from: ${e.effective_from}` : ''}${e.effective_to ? ` until: ${e.effective_to}` : ''}` +
+      `\nUpdated: ${String(e.updated_at).slice(0, 10)}${e.status === 'review' ? ' (NEEDS REVIEW)' : ''}`
     ).join('\n\n')
 
     const system = useContext
@@ -60,10 +60,10 @@ You answer questions of employees using ONLY the knowledge base context below. T
 RULES
 - Company facts (prices, dates, features, conditions) come ONLY from the CONTEXT. Cite them with source numbers like [1] or [2][3] right after the sentence.
 - If the context does not contain the answer, start your reply with exactly ${NO_ANSWER} and then say briefly that this is not in the knowledge base yet and what could be added. Do not invent.
-- If a source is marked "требует проверки" or looks outdated, say so.
+- If a source is marked "NEEDS REVIEW" or looks outdated, say so.
 - For writing tasks (posts, emails, descriptions) use the facts from the context and the brand tone of voice.
 - Do not list source metadata (update dates, statuses) unless the user asks or it matters for the answer; write dates in a natural form.
-- Answer in the language of the user's message. Be concise. Use Markdown (short paragraphs, lists, **bold** for key values).
+- Answer in Polish; switch to another language only if the user writes in it. Be concise. Use Markdown (short paragraphs, lists, **bold** for key values).
 ${brand?.tone ? `\nBRAND TONE OF VOICE: ${brand.tone.slice(0, 600)}` : ''}${brand?.audience ? `\nAUDIENCE: ${brand.audience.slice(0, 300)}` : ''}
 
 PRODUCTS OF THE COMPANY:
@@ -71,7 +71,7 @@ ${(products ?? []).map((p) => `- ${p.name}${p.kind ? ` (${p.kind})` : ''}${p.sum
 
 CONTEXT:
 ${context || '(nothing relevant found)'}`
-      : `You are AURORA — an assistant of the company "${company?.name}". The user turned the knowledge base context OFF: help with general tasks (ideas, texts, plans) and do not state company facts as certain. Answer in the language of the user. Use Markdown.`
+      : `You are AURORA — an assistant of the company "${company?.name}". The user turned the knowledge base context OFF: help with general tasks (ideas, texts, plans) and do not state company facts as certain. Answer in Polish unless the user writes in another language. Use Markdown.`
 
     const messages: Msg[] = [
       { role: 'system', content: system },

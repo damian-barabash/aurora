@@ -3,30 +3,27 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { emitChanged } from '../app/Shell'
 import { useSession } from '../app/session'
 import { BRAND_ICONS, BrandIcon } from '../brand/Logo'
-import { useT } from '../lib/i18n'
 import { api, supabase } from '../lib/supabase'
 import type { Collection, Entry, EntryType, Product, ProductState, Source } from '../lib/types'
 import { Badge, Button, cx, Field, Modal, Segmented, Toggle, useFeedback } from './ui'
 
 export function useTypeLabels(): Record<EntryType, string> {
-  const t = useT()
   return {
-    fact: t('Факт', 'Fakt'),
-    price: t('Цена', 'Cena'),
-    date: t('Дата', 'Termin'),
-    news: t('Новость', 'Aktualność'),
-    announcement: t('Коммуникат', 'Komunikat'),
+    fact: 'Fakt',
+    price: 'Cena',
+    date: 'Termin',
+    news: 'Aktualność',
+    announcement: 'Komunikat',
     faq: 'FAQ',
-    link: t('Ссылка', 'Link'),
-    document: t('Документ', 'Dokument'),
+    link: 'Link',
+    document: 'Dokument',
   }
 }
 
 export function StateBadge({ state }: { state: ProductState | Entry['status'] }) {
-  const t = useT()
-  if (state === 'review' || state === 'outdated') return <Badge tone="accent" icon={<Clock size={14} />}>{t('Проверить', 'Sprawdź')}</Badge>
-  if (state === 'archived') return <Badge>{t('В архиве', 'W archiwum')}</Badge>
-  return <Badge icon={<CircleCheck size={14} />}>{t('Актуально', 'Aktualne')}</Badge>
+  if (state === 'review' || state === 'outdated') return <Badge tone="accent" icon={<Clock size={14} />}>Sprawdź</Badge>
+  if (state === 'archived') return <Badge>W archiwum</Badge>
+  return <Badge icon={<CircleCheck size={14} />}>Aktualne</Badge>
 }
 
 const SOURCE_ICON: Record<Source, ReactNode> = {
@@ -40,10 +37,9 @@ const SOURCE_ICON: Record<Source, ReactNode> = {
 }
 
 export function SourceTag({ source, label }: { source: Source; label?: string | null }) {
-  const t = useT()
   const names: Record<Source, string> = {
-    manual: t('Вручную', 'Ręcznie'), email: t('Почта', 'Poczta'), calendar: t('Календарь', 'Kalendarz'), claude: 'Claude',
-    website: t('Сайт', 'Strona'), file: t('Файл', 'Plik'), chat: t('Чат', 'Czat'),
+    manual: 'Ręcznie', email: 'Poczta', calendar: 'Kalendarz', claude: 'Claude',
+    website: 'Strona', file: 'Plik', chat: 'Czat',
   }
   return <span className="srctag" title={label ?? undefined}>{SOURCE_ICON[source]}{label || names[source]}</span>
 }
@@ -61,7 +57,6 @@ export function EntryEditor({ open, onClose, entry, productId, preset }: {
   productId?: string | null
   preset?: Partial<Entry>
 }) {
-  const t = useT()
   const types = useTypeLabels()
   const { company } = useSession()
   const { fail, toast } = useFeedback()
@@ -93,7 +88,7 @@ export function EntryEditor({ open, onClose, entry, productId, preset }: {
     setBusy(false)
     if (error || !data) return fail(error?.message ?? 'error')
     api('embed', { ids: [data.id] }).catch(() => {})
-    toast(entry ? t('Сохранено', 'Zapisano') : t('Добавлено в базу знаний', 'Dodano do bazy wiedzy'))
+    toast(entry ? 'Zapisano' : 'Dodano do bazy wiedzy')
     emitChanged()
     onClose(true)
   }
@@ -101,35 +96,35 @@ export function EntryEditor({ open, onClose, entry, productId, preset }: {
   const isNews = f.type === 'announcement' || f.type === 'news'
   return (
     <Modal open={open} onClose={() => onClose()} width={600}
-      title={entry ? t('Изменить запись', 'Edytuj wpis') : isNews ? t('Новый коммуникат', 'Nowy komunikat') : t('Новая запись', 'Nowy wpis')}
-      footer={<><Button onClick={() => onClose()}>{t('Отмена', 'Anuluj')}</Button><Button variant="primary" busy={busy} disabled={!f.title.trim()} onClick={save}>{t('Сохранить', 'Zapisz')}</Button></>}>
+      title={entry ? 'Edytuj wpis' : isNews ? 'Nowy komunikat' : 'Nowy wpis'}
+      footer={<><Button onClick={() => onClose()}>Anuluj</Button><Button variant="primary" busy={busy} disabled={!f.title.trim()} onClick={save}>Zapisz</Button></>}>
       <div className="form">
-        <Field label={t('Тип', 'Typ')}>
+        <Field label="Typ">
           <div className="chips">
             {(['fact', 'price', 'date', 'news', 'announcement', 'faq', 'link'] as EntryType[]).map((k) => (
               <button key={k} type="button" className={cx('chip', f.type === k && 'is-on')} onClick={() => setF({ ...f, type: k })}>{types[k]}</button>
             ))}
           </div>
         </Field>
-        <Field label={t('Заголовок', 'Tytuł')}>
+        <Field label="Tytuł">
           <input className="input" autoFocus value={f.title} maxLength={160} onChange={(e) => setF({ ...f, title: e.target.value })}
-            placeholder={f.type === 'price' ? t('Цена тарифа Team', 'Cena pakietu Team') : t('Коротко и конкретно', 'Krótko i konkretnie')} />
+            placeholder={f.type === 'price' ? 'Cena pakietu Team' : 'Krótko i konkretnie'} />
         </Field>
-        <Field label={t('Содержание', 'Treść')} hint={t('Пишите полными фразами с конкретными значениями — так ИИ ответит точнее.', 'Pisz pełnymi zdaniami z konkretnymi wartościami — AI odpowie dokładniej.')}>
+        <Field label="Treść" hint="Pisz pełnymi zdaniami z konkretnymi wartościami — AI odpowie dokładniej.">
           <textarea className="textarea" rows={5} value={f.body} onChange={(e) => setF({ ...f, body: e.target.value })} />
         </Field>
         <div className="form__row">
-          <Field label={t('Действует с', 'Obowiązuje od')}><input type="date" className="input" value={f.effective_from} onChange={(e) => setF({ ...f, effective_from: e.target.value })} /></Field>
-          <Field label={t('Действует до', 'Obowiązuje do')} hint={t('После этой даты запись попросит проверки', 'Po tej dacie wpis poprosi o sprawdzenie')}><input type="date" className="input" value={f.effective_to} onChange={(e) => setF({ ...f, effective_to: e.target.value })} /></Field>
+          <Field label="Obowiązuje od"><input type="date" className="input" value={f.effective_from} onChange={(e) => setF({ ...f, effective_from: e.target.value })} /></Field>
+          <Field label="Obowiązuje do" hint="Po tej dacie wpis poprosi o sprawdzenie"><input type="date" className="input" value={f.effective_to} onChange={(e) => setF({ ...f, effective_to: e.target.value })} /></Field>
         </div>
-        <Field label={t('Важность', 'Ważność')}>
+        <Field label="Ważność">
           <Segmented value={String(f.importance)} onChange={(v) => setF({ ...f, importance: Number(v) })} options={[
-            { value: '0', label: t('Низкая', 'Niska') }, { value: '1', label: t('Обычная', 'Zwykła') },
-            { value: '2', label: t('Важно', 'Ważne') }, { value: '3', label: t('Срочно', 'Pilne') },
+            { value: '0', label: 'Niska' }, { value: '1', label: 'Zwykła' },
+            { value: '2', label: 'Ważne' }, { value: '3', label: 'Pilne' },
           ]} />
         </Field>
-        {isNews && <Toggle checked={f.pinned} onChange={(pinned) => setF({ ...f, pinned })} label={t('Закрепить наверху', 'Przypnij na górze')}
-          hint={t('Коммуникат с важностью «Важно» и выше получит вся команда.', 'Komunikat o ważności „Ważne” i wyższej dostanie cały zespół.')} />}
+        {isNews && <Toggle checked={f.pinned} onChange={(pinned) => setF({ ...f, pinned })} label="Przypnij na górze"
+          hint="Komunikat o ważności „Ważne” i wyższej dostanie cały zespół." />}
       </div>
     </Modal>
   )
@@ -144,7 +139,6 @@ export function ProductEditor({ open, onClose, product, collections, defaultColl
   collections: Collection[]
   defaultCollection?: string | null
 }) {
-  const t = useT()
   const { company } = useSession()
   const { fail, toast } = useFeedback()
   const [f, setF] = useState({ name: '', kind: '', icon: 'spark', summary: '', description: '', collection_id: '' })
@@ -166,15 +160,15 @@ export function ProductEditor({ open, onClose, product, collections, defaultColl
       : await supabase.from('products').insert({ ...row, company_id: company.id, last_verified_at: new Date().toISOString() }).select('id').single()
     setBusy(false)
     if (error || !data) return fail(error?.message ?? 'error')
-    toast(product ? t('Сохранено', 'Zapisano') : t('Продукт добавлен', 'Produkt dodany'))
+    toast(product ? 'Zapisano' : 'Produkt dodany')
     emitChanged()
     onClose(data.id)
   }
   return (
-    <Modal open={open} onClose={() => onClose()} width={600} title={product ? t('Изменить продукт', 'Edytuj produkt') : t('Новый продукт', 'Nowy produkt')}
-      footer={<><Button onClick={() => onClose()}>{t('Отмена', 'Anuluj')}</Button><Button variant="primary" busy={busy} disabled={f.name.trim().length < 2} onClick={save}>{product ? t('Сохранить', 'Zapisz') : t('Добавить', 'Dodaj')}</Button></>}>
+    <Modal open={open} onClose={() => onClose()} width={600} title={product ? 'Edytuj produkt' : 'Nowy produkt'}
+      footer={<><Button onClick={() => onClose()}>Anuluj</Button><Button variant="primary" busy={busy} disabled={f.name.trim().length < 2} onClick={save}>{product ? 'Zapisz' : 'Dodaj'}</Button></>}>
       <div className="form">
-        <Field label={t('Знак', 'Znak')}>
+        <Field label="Znak">
           <div className="iconpick">
             {BRAND_ICONS.map((name) => (
               <button key={name} type="button" className={cx(f.icon === name && 'is-on')} onClick={() => setF({ ...f, icon: name })} aria-label={name}><BrandIcon name={name} size={24} /></button>
@@ -182,19 +176,19 @@ export function ProductEditor({ open, onClose, product, collections, defaultColl
           </div>
         </Field>
         <div className="form__row">
-          <Field label={t('Название', 'Nazwa')}><input className="input" autoFocus value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
-          <Field label={t('Вид', 'Rodzaj')}><input className="input" value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value })} placeholder={t('Сервис, курс, событие…', 'Usługa, kurs, wydarzenie…')} /></Field>
+          <Field label="Nazwa"><input className="input" autoFocus value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
+          <Field label="Rodzaj"><input className="input" value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value })} placeholder="Usługa, kurs, wydarzenie…" /></Field>
         </div>
-        <Field label={t('Коллекция', 'Kolekcja')}>
+        <Field label="Kolekcja">
           <select className="select" value={f.collection_id} onChange={(e) => setF({ ...f, collection_id: e.target.value })}>
-            <option value="">{t('Без коллекции', 'Bez kolekcji')}</option>
+            <option value="">Bez kolekcji</option>
             {collections.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </Field>
-        <Field label={t('Коротко', 'Krótko')} hint={t('Одна фраза — она видна на карточке', 'Jedno zdanie — widoczne na karcie')}>
+        <Field label="Krótko" hint="Jedno zdanie — widoczne na karcie">
           <input className="input" value={f.summary} maxLength={200} onChange={(e) => setF({ ...f, summary: e.target.value })} />
         </Field>
-        <Field label={t('Описание', 'Opis')}>
+        <Field label="Opis">
           <textarea className="textarea" rows={5} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} />
         </Field>
       </div>
@@ -205,7 +199,6 @@ export function ProductEditor({ open, onClose, product, collections, defaultColl
 // ───────── импорт: текст → факты ─────────
 
 export function ImportText({ open, onClose, productId }: { open: boolean; onClose(): void; productId?: string | null }) {
-  const t = useT()
   const { company } = useSession()
   const { fail } = useFeedback()
   const [text, setText] = useState('')
@@ -221,7 +214,7 @@ export function ImportText({ open, onClose, productId }: { open: boolean; onClos
     if (!company) return
     setBusy(true)
     try {
-      setResult(await api('import_text', { company_id: company.id, text, product_id: productId ?? null, label: t('Импорт текста', 'Import tekstu') }))
+      setResult(await api('import_text', { company_id: company.id, text, product_id: productId ?? null, label: 'Import tekstu' }))
       emitChanged()
     } catch (e) {
       fail(e)
@@ -229,22 +222,22 @@ export function ImportText({ open, onClose, productId }: { open: boolean; onClos
     setBusy(false)
   }
   return (
-    <Modal open={open} onClose={onClose} width={640} title={t('Вставьте текст — ИИ разложит его на факты', 'Wklej tekst — AI rozłoży go na fakty')}
-      subtitle={!result && t('Оферта, прайс, описание с сайта, заметки со встречи. Личное и непроверенное отбрасывается.', 'Oferta, cennik, opis ze strony, notatki ze spotkania. Prywatne i niepotwierdzone jest odrzucane.')}
+    <Modal open={open} onClose={onClose} width={640} title="Wklej tekst — AI rozłoży go na fakty"
+      subtitle={!result && 'Oferta, cennik, opis ze strony, notatki ze spotkania. Prywatne i niepotwierdzone jest odrzucane.'}
       footer={result
-        ? <Button variant="primary" onClick={onClose}>{t('Готово', 'Gotowe')}</Button>
-        : <><Button onClick={onClose}>{t('Отмена', 'Anuluj')}</Button><Button variant="primary" busy={busy} disabled={text.trim().length < 40} onClick={run}>{busy ? t('Читаю…', 'Czytam…') : t('Разобрать', 'Analizuj')}</Button></>}>
+        ? <Button variant="primary" onClick={onClose}>Gotowe</Button>
+        : <><Button onClick={onClose}>Anuluj</Button><Button variant="primary" busy={busy} disabled={text.trim().length < 40} onClick={run}>{busy ? 'Czytam…' : 'Analizuj'}</Button></>}>
       {result ? (
         <div className="import-result">
           <div className="import-result__nums">
-            <div><b>{result.applied}</b><span>{t('добавлено в базу', 'dodano do bazy')}</span></div>
-            <div><b>{result.proposed}</b><span>{t('ждут проверки', 'czeka na sprawdzenie')}</span></div>
+            <div><b>{result.applied}</b><span>dodano do bazy</span></div>
+            <div><b>{result.proposed}</b><span>czeka na sprawdzenie</span></div>
           </div>
           {result.titles.length > 0 && <ul>{result.titles.map((x, i) => <li key={i}>{x}</li>)}</ul>}
-          {!result.applied && !result.proposed && <p className="muted">{t('Новых фактов не нашлось: всё уже есть в базе или текст не про продукты.', 'Nie znaleziono nowych faktów: wszystko już jest w bazie albo tekst nie dotyczy produktów.')}</p>}
+          {!result.applied && !result.proposed && <p className="muted">Nie znaleziono nowych faktów: wszystko już jest w bazie albo tekst nie dotyczy produktów.</p>}
         </div>
       ) : (
-        <textarea className="textarea" rows={12} autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder={t('Вставьте сюда текст…', 'Wklej tutaj tekst…')} />
+        <textarea className="textarea" rows={12} autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="Wklej tutaj tekst…" />
       )}
     </Modal>
   )

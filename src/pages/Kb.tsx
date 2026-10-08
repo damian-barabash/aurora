@@ -6,7 +6,7 @@ import { useCompany, useQuery, useSession } from '../app/session'
 import { Mark } from '../brand/Logo'
 import { ImportText, ProductEditor, ProductIcon, StateBadge } from '../components/kb'
 import { Button, Empty, Field, Loading, Menu, MenuItem, Modal, Segmented, Tabs, useFeedback } from '../components/ui'
-import { fmtWhen, plural, useI18n, useT } from '../lib/i18n'
+import { fmtWhen, plural } from '../lib/format'
 import { supabase } from '../lib/supabase'
 import type { Collection, Product } from '../lib/types'
 
@@ -14,8 +14,6 @@ type Tab = 'all' | 'current' | 'review'
 type Sort = 'new' | 'name' | 'size'
 
 export default function KbPage() {
-  const t = useT()
-  const { lang } = useI18n()
   const company = useCompany()
   const { canManage } = useSession()
   const { fail } = useFeedback()
@@ -50,8 +48,8 @@ export default function KbPage() {
   }, [inCollection, tab, q, sort])
 
   const collection = data?.collections.find((c) => c.id === collectionId)
-  const sortLabel = { new: t('Сначала новые', 'Najpierw nowe'), name: t('По названию', 'Według nazwy'), size: t('По объёму', 'Według objętości') }
-  const materials = (n: number) => `${n} ${plural(n, lang === 'pl' ? ['materiał', 'materiały', 'materiałów'] : ['материал', 'материала', 'материалов'], lang)}`
+  const sortLabel = { new: 'Najpierw nowe', name: 'Według nazwy', size: 'Według objętości' }
+  const materials = (n: number) => `${n} ${plural(n, ['materiał', 'materiały', 'materiałów'])}`
   const lastChange = (data?.products ?? []).reduce((max, p) => (p.last_change > max ? p.last_change : max), '')
 
   const addCollection = async () => {
@@ -66,40 +64,40 @@ export default function KbPage() {
   if (loading && !data) return <Loading />
 
   return (
-    <Page crumb={<><Link to="/app/kb">{t('База знаний', 'Baza wiedzy')}</Link>/<b>{collection?.name ?? t('Все продукты', 'Wszystkie produkty')}</b></>}>
+    <Page crumb={<><Link to="/app/kb">Baza wiedzy</Link>/<b>{collection?.name ?? 'Wszystkie produkty'}</b></>}>
       <div className="page__head">
         <div>
-          <h1>{collection?.name ?? t('База знаний бренда', 'Baza wiedzy marki')}</h1>
-          <p>{t('Продукты, проекты и актуальные материалы вашей команды.', 'Produkty, projekty i aktualne materiały Twojego zespołu.')}</p>
+          <h1>{collection?.name ?? 'Baza wiedzy marki'}</h1>
+          <p>Produkty, projekty i aktualne materiały Twojego zespołu.</p>
         </div>
         <div className="page__actions">
-          <Menu trigger={(_, toggle) => <Button onClick={toggle} trailing={<ChevronDown size={16} />}>{t('Импорт', 'Import')}</Button>}>
+          <Menu trigger={(_, toggle) => <Button onClick={toggle} trailing={<ChevronDown size={16} />}>Import</Button>}>
             {(close) => (
               <>
-                <MenuItem icon={<ClipboardPaste size={17} />} onClick={() => { close(); setImporting(true) }}>{t('Вставить текст', 'Wklej tekst')}</MenuItem>
-                <MenuItem icon={<FileText size={17} />} onClick={() => { close(); nav('/app/files') }}>{t('Из файла (PDF, DOCX)', 'Z pliku (PDF, DOCX)')}</MenuItem>
-                <MenuItem icon={<Globe size={17} />} onClick={() => { close(); nav('/app/integrations#site') }}>{t('С сайта фирмы', 'Ze strony firmy')}</MenuItem>
-                {canManage && <><div className="menu__sep" /><MenuItem icon={<FolderPlus size={17} />} onClick={() => { close(); setNewCollection('') }}>{t('Новая коллекция', 'Nowa kolekcja')}</MenuItem></>}
+                <MenuItem icon={<ClipboardPaste size={17} />} onClick={() => { close(); setImporting(true) }}>Wklej tekst</MenuItem>
+                <MenuItem icon={<FileText size={17} />} onClick={() => { close(); nav('/app/files') }}>Z pliku (PDF, DOCX)</MenuItem>
+                <MenuItem icon={<Globe size={17} />} onClick={() => { close(); nav('/app/integrations#site') }}>Ze strony firmy</MenuItem>
+                {canManage && <><div className="menu__sep" /><MenuItem icon={<FolderPlus size={17} />} onClick={() => { close(); setNewCollection('') }}>Nowa kolekcja</MenuItem></>}
               </>
             )}
           </Menu>
-          <Button variant="accent" size="lg" icon={<Plus size={20} />} onClick={() => setEditor(true)}>{t('Добавить продукт', 'Dodaj produkt')}</Button>
+          <Button variant="accent" size="lg" icon={<Plus size={20} />} onClick={() => setEditor(true)}>Dodaj produkt</Button>
         </div>
       </div>
 
       <Link to="/app/brand/strategy" className="brandbar">
         <Mark size={40} />
         <span className="grow">
-          <b>{t('Всё начинается с бренда', 'Wszystko zaczyna się od marki')}</b>
-          <small>{t('Стратегия, айдентика, аудитория и tone of voice', 'Strategia, identyfikacja, odbiorcy i tone of voice')}</small>
+          <b>Wszystko zaczyna się od marki</b>
+          <small>Strategia, identyfikacja, odbiorcy i tone of voice</small>
         </span>
-        <span className="brandbar__go">{t('О бренде', 'O marce')}<ArrowUpRight size={18} /></span>
+        <span className="brandbar__go">O marce<ArrowUpRight size={18} /></span>
       </Link>
 
       <div className="kb__tools">
         <div className="search kb__search">
           <Search size={18} />
-          <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('Найти продукт, проект или материал', 'Znajdź produkt, projekt lub materiał')} />
+          <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Znajdź produkt, projekt lub materiał" />
         </div>
         <span className="grow" />
         <Menu trigger={(_, toggle) => <Button variant="quiet" icon={<SlidersHorizontal size={17} />} trailing={<ChevronDown size={15} />} onClick={toggle}>{sortLabel[sort]}</Button>}>
@@ -112,19 +110,19 @@ export default function KbPage() {
 
       <div className="kb__tabs">
         <Tabs value={tab} onChange={setTab} tabs={[
-          { value: 'all', label: t('Все продукты', 'Wszystkie produkty'), count: inCollection.length },
-          { value: 'current', label: t('Актуальные', 'Aktualne'), count: inCollection.filter((p) => p.state === 'current').length },
-          { value: 'review', label: t('Требуют проверки', 'Do sprawdzenia'), count: inCollection.filter((p) => p.state === 'review').length },
+          { value: 'all', label: 'Wszystkie produkty', count: inCollection.length },
+          { value: 'current', label: 'Aktualne', count: inCollection.filter((p) => p.state === 'current').length },
+          { value: 'review', label: 'Do sprawdzenia', count: inCollection.filter((p) => p.state === 'review').length },
         ]} />
-        <span className="kb__total">{materials(data?.total ?? 0)} {t('в базе', 'w bazie')}</span>
+        <span className="kb__total">{materials(data?.total ?? 0)} w bazie</span>
       </div>
 
       {shown.length === 0 ? (
         <Empty
           icon={<LayoutGrid size={24} />}
-          title={q || tab !== 'all' ? t('Ничего не нашлось', 'Nic nie znaleziono') : t('Здесь появятся ваши продукты', 'Tutaj pojawią się Twoje produkty')}
-          text={q || tab !== 'all' ? undefined : t('Добавьте первый продукт вручную, вставьте текст оферты или импортируйте сайт — ИИ разложит всё по карточкам.', 'Dodaj pierwszy produkt ręcznie, wklej tekst oferty lub zaimportuj stronę — AI rozłoży wszystko na karty.')}
-          action={!q && tab === 'all' && <Button variant="accent" icon={<Plus size={18} />} onClick={() => setEditor(true)}>{t('Добавить продукт', 'Dodaj produkt')}</Button>}
+          title={q || tab !== 'all' ? 'Nic nie znaleziono' : 'Tutaj pojawią się Twoje produkty'}
+          text={q || tab !== 'all' ? undefined : 'Dodaj pierwszy produkt ręcznie, wklej tekst oferty lub zaimportuj stronę — AI rozłoży wszystko na karty.'}
+          action={!q && tab === 'all' && <Button variant="accent" icon={<Plus size={18} />} onClick={() => setEditor(true)}>Dodaj produkt</Button>}
         />
       ) : view === 'grid' ? (
         <div className="pgrid">
@@ -132,10 +130,10 @@ export default function KbPage() {
             <Link key={p.id} to={`/app/kb/${p.id}`} className="pcard" style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}>
               <div className="pcard__top"><ProductIcon icon={p.icon} accent={i === 0} /><StateBadge state={p.state} /></div>
               <div className="pcard__name"><h3 className="truncate">{p.name}</h3>{p.kind && <span>{p.kind}</span>}</div>
-              <p>{p.summary || t('Описание пока не добавлено.', 'Opis nie został jeszcze dodany.')}</p>
+              <p>{p.summary || 'Opis nie został jeszcze dodany.'}</p>
               <div className="pcard__foot">
                 <span><FileText size={15} />{materials(p.entries_count)}</span>
-                <span className="pcard__when">{fmtWhen(p.last_change, lang)}<ArrowUpRight size={15} /></span>
+                <span className="pcard__when">{fmtWhen(p.last_change)}<ArrowUpRight size={15} /></span>
               </div>
             </Link>
           ))}
@@ -149,7 +147,7 @@ export default function KbPage() {
               <span className="plist__kind">{p.kind}</span>
               <span className="plist__n">{materials(p.entries_count)}</span>
               <StateBadge state={p.state} />
-              <span className="plist__when">{fmtWhen(p.last_change, lang)}</span>
+              <span className="plist__when">{fmtWhen(p.last_change)}</span>
             </Link>
           ))}
         </div>
@@ -157,16 +155,16 @@ export default function KbPage() {
 
       {lastChange && (
         <div className="kb__foot">
-          <span><Clock size={15} />{t('Последнее обновление', 'Ostatnia aktualizacja')}: {fmtWhen(lastChange, lang).toLowerCase()}</span>
-          <span>{t('Актуальные знания. Сильный бренд.', 'Aktualna wiedza. Silna marka.')}</span>
+          <span><Clock size={15} />Ostatnia aktualizacja: {fmtWhen(lastChange).toLowerCase()}</span>
+          <span>Aktualna wiedza. Silna marka.</span>
         </div>
       )}
 
       <ProductEditor open={editor} collections={data?.collections ?? []} defaultCollection={collectionId} onClose={(id) => { setEditor(false); if (id) nav(`/app/kb/${id}`) }} />
       <ImportText open={importing} onClose={() => setImporting(false)} />
-      <Modal open={newCollection !== null} onClose={() => setNewCollection(null)} width={420} title={t('Новая коллекция', 'Nowa kolekcja')}
-        footer={<><Button onClick={() => setNewCollection(null)}>{t('Отмена', 'Anuluj')}</Button><Button variant="primary" disabled={!newCollection?.trim()} onClick={addCollection}>{t('Создать', 'Utwórz')}</Button></>}>
-        <Field label={t('Название', 'Nazwa')}><input className="input" autoFocus value={newCollection ?? ''} onChange={(e) => setNewCollection(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addCollection()} /></Field>
+      <Modal open={newCollection !== null} onClose={() => setNewCollection(null)} width={420} title="Nowa kolekcja"
+        footer={<><Button onClick={() => setNewCollection(null)}>Anuluj</Button><Button variant="primary" disabled={!newCollection?.trim()} onClick={addCollection}>Utwórz</Button></>}>
+        <Field label="Nazwa"><input className="input" autoFocus value={newCollection ?? ''} onChange={(e) => setNewCollection(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addCollection()} /></Field>
       </Modal>
     </Page>
   )

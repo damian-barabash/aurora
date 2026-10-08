@@ -13,7 +13,8 @@
     "seed": "node scripts/seed.mjs",
     "smoke": "node scripts/smoke.mjs",
     "e2e": "node scripts/e2e.mjs",
-    "shots": "node scripts/shots.mjs"
+    "shots": "node scripts/shots.mjs",
+    "lp:shots": "node scripts/lp-shots.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

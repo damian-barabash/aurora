@@ -20,8 +20,8 @@ async function ask(message) {
   const done = JSON.parse(text.match(/event: done\ndata: (.*)/)?.[1] ?? '{}')
   console.log(`\nQ: ${message}\nA (${Date.now() - t0} ms, gap=${done.gap}, src=${done.sources?.length}): ${answer}`)
 }
-await ask('Сколько стоит тариф Team?')
-await ask('Какой у вас адрес офиса в Варшаве?')
+await ask('Ile kosztuje pakiet Team?')
+await ask('Jaki jest adres biura w Warszawie?')
 
 console.log('\nimport_text →', await api('import_text', {
   company_id: cid, label: 'smoke',

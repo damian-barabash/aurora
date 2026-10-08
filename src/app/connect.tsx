@@ -1,7 +1,7 @@
 import { Check, Copy, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { Button, copyText, IconBtn, Segmented, useFeedback } from '../components/ui'
-import { fmtWhen, useI18n, useT } from '../lib/i18n'
+import { fmtWhen } from '../lib/format'
 import { api, supabase } from '../lib/supabase'
 import type { Integration } from '../lib/types'
 import { useChanged } from './Shell'
@@ -62,12 +62,11 @@ export function useGoogleConnect() {
 }
 
 export function CodeLine({ text }: { text: string }) {
-  const t = useT()
   const [done, setDone] = useState(false)
   return (
     <div className="code">
       {text}
-      <IconBtn label={t('Скопировать', 'Kopiuj')} onClick={async () => {
+      <IconBtn label="Kopiuj" onClick={async () => {
         if (await copyText(text)) {
           setDone(true)
           setTimeout(() => setDone(false), 1600)
@@ -79,8 +78,6 @@ export function CodeLine({ text }: { text: string }) {
 
 /** Пошаговое подключение Claude: создаём личную ссылку и показываем, куда её вставить. */
 export function ClaudeSetup({ tokens, onChange, compact }: { tokens: McpToken[]; onChange(): void; compact?: boolean }) {
-  const t = useT()
-  const { lang } = useI18n()
   const { company } = useSession()
   const { fail, confirm } = useFeedback()
   const [fresh, setFresh] = useState<{ url: string } | null>(null)
@@ -100,7 +97,7 @@ export function ClaudeSetup({ tokens, onChange, compact }: { tokens: McpToken[];
     setBusy(false)
   }
   const revoke = async (id: string) => {
-    if (!(await confirm({ title: t('Отключить эту ссылку?', 'Odłączyć ten link?'), text: t('Claude с этой ссылкой потеряет доступ к базе знаний.', 'Claude z tym linkiem straci dostęp do bazy wiedzy.'), action: t('Отключить', 'Odłącz'), danger: true }))) return
+    if (!(await confirm({ title: 'Odłączyć ten link?', text: 'Claude z tym linkiem straci dostęp do bazy wiedzy.', action: 'Odłącz', danger: true }))) return
     await api('mcp_token_revoke', { id }).catch(fail)
     onChange()
   }
@@ -110,39 +107,39 @@ export function ClaudeSetup({ tokens, onChange, compact }: { tokens: McpToken[];
       {!fresh && (
         <div className="claude__start">
           <Button variant={tokens.length ? 'ghost' : 'primary'} icon={<Plus size={18} />} busy={busy} onClick={create}>
-            {tokens.length ? t('Создать ещё одну ссылку', 'Utwórz kolejny link') : t('Создать личную ссылку', 'Utwórz osobisty link')}
+            {tokens.length ? 'Utwórz kolejny link' : 'Utwórz osobisty link'}
           </Button>
-          {!tokens.length && <p className="muted">{t('Ссылка привязана к вам и к этой фирме. Claude увидит только базу знаний — не почту.', 'Link jest przypisany do Ciebie i tej firmy. Claude zobaczy tylko bazę wiedzy — nie pocztę.')}</p>}
+          {!tokens.length && <p className="muted">Link jest przypisany do Ciebie i tej firmy. Claude zobaczy tylko bazę wiedzy — nie pocztę.</p>}
         </div>
       )}
 
       {fresh && (
         <ol className="steps">
           <li>
-            <b>{t('Скопируйте личную ссылку', 'Skopiuj osobisty link')}</b>
-            <span>{t('Она показывается один раз. Не делитесь ею — это ваш ключ.', 'Jest widoczny tylko raz. Nie udostępniaj go — to Twój klucz.')}</span>
+            <b>Skopiuj osobisty link</b>
+            <span>Jest widoczny tylko raz. Nie udostępniaj go — to Twój klucz.</span>
             <CodeLine text={fresh.url} />
           </li>
           <li>
-            <b>{t('Добавьте её в Claude', 'Dodaj go w Claude')}</b>
+            <b>Dodaj go w Claude</b>
             <Segmented value={where} onChange={setWhere} options={[
               { value: 'app', label: 'Claude · claude.ai / Desktop' },
               { value: 'code', label: 'Claude Code' },
             ]} />
             {where === 'app' ? (
               <span>
-                {t('Откройте', 'Otwórz')} <b>Settings → Connectors → Add custom connector</b>. {t('Название', 'Nazwa')}: <b>AURORA</b>, {t('адрес — ваша ссылка. Нажмите', 'adres — Twój link. Kliknij')} <b>Add</b>.
+                Otwórz <b>Settings → Connectors → Add custom connector</b>. Nazwa: <b>AURORA</b>, adres — Twój link. Kliknij <b>Add</b>.
               </span>
             ) : (
               <>
-                <span>{t('Выполните в терминале:', 'Uruchom w terminalu:')}</span>
+                <span>Uruchom w terminalu:</span>
                 <CodeLine text={`claude mcp add --transport http aurora ${fresh.url}`} />
               </>
             )}
           </li>
           <li>
-            <b>{t('Проверьте', 'Sprawdź')}</b>
-            <span>{t('Спросите Claude: «Что нового в AURORA?». Когда он узнает новую информацию о продуктах, он сам спросит, обновить ли её в базе.', 'Zapytaj Claude: „Co nowego w AURORA?”. Gdy pozna nową informację o produktach, sam zapyta, czy zaktualizować ją w bazie.')}</span>
+            <b>Sprawdź</b>
+            <span>Zapytaj Claude: „Co nowego w AURORA?”. Gdy pozna nową informację o produktach, sam zapyta, czy zaktualizować ją w bazie.</span>
           </li>
         </ol>
       )}
@@ -154,10 +151,10 @@ export function ClaudeSetup({ tokens, onChange, compact }: { tokens: McpToken[];
               <code>{tok.preview}</code>
               <span className="muted grow">
                 {tok.last_used_at
-                  ? `${t('использована', 'użyty')} ${fmtWhen(tok.last_used_at, lang)} · ${tok.calls} ${t('запросов', 'zapytań')}`
-                  : t('ещё не использовалась', 'jeszcze nie użyty')}
+                  ? `${'użyty'} ${fmtWhen(tok.last_used_at)} · ${tok.calls} ${'zapytań'}`
+                  : 'jeszcze nie użyty'}
               </span>
-              <IconBtn label={t('Отключить', 'Odłącz')} onClick={() => revoke(tok.id)}><Trash2 size={16} /></IconBtn>
+              <IconBtn label="Odłącz" onClick={() => revoke(tok.id)}><Trash2 size={16} /></IconBtn>
             </div>
           ))}
         </div>

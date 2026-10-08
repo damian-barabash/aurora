@@ -4,7 +4,6 @@ import {
   type ButtonHTMLAttributes, type ReactNode,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { useI18n, useT } from '../lib/i18n'
 import { ApiError } from '../lib/supabase'
 
 export const cx = (...parts: (string | false | null | undefined)[]) => parts.filter(Boolean).join(' ')
@@ -71,7 +70,7 @@ export function Modal({ open, onClose, title, subtitle, children, footer, width 
   return createPortal(
     <div className="modal" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className={cx('modal__box', className)} style={{ maxWidth: width }} role="dialog" aria-modal>
-        <IconBtn label="Закрыть" className="modal__close" onClick={onClose}><X size={18} /></IconBtn>
+        <IconBtn label="Zamknij" className="modal__close" onClick={onClose}><X size={18} /></IconBtn>
         {(title || subtitle) && (
           <header className="modal__head">
             {title && <h2>{title}</h2>}
@@ -110,8 +109,6 @@ const FeedbackCtx = createContext<Feedback>(null!)
 export const useFeedback = () => useContext(FeedbackCtx)
 
 export function FeedbackProvider({ children }: { children: ReactNode }) {
-  const { lang } = useI18n()
-  const t = useT()
   const [toasts, setToasts] = useState<Toast[]>([])
   const [ask, setAsk] = useState<(ConfirmOpts & { resolve(v: boolean): void }) | null>(null)
   const seq = useRef(0)
@@ -122,8 +119,8 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     setTimeout(() => setToasts((list) => list.filter((x) => x.id !== id)), tone === 'error' ? 6000 : 3200)
   }, [])
   const fail = useCallback((e: unknown) => {
-    toast(e instanceof ApiError ? e.text(lang) : e instanceof Error ? e.message : String(e), 'error')
-  }, [toast, lang])
+    toast(e instanceof ApiError ? e.text() : e instanceof Error ? e.message : String(e), 'error')
+  }, [toast])
   const confirm = useCallback((opts: ConfirmOpts) => new Promise<boolean>((resolve) => setAsk({ ...opts, resolve })), [])
   const answer = (v: boolean) => {
     ask?.resolve(v)
@@ -141,9 +138,9 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
         width={420}
         footer={
           <>
-            <Button onClick={() => answer(false)}>{t('Отмена', 'Anuluj')}</Button>
+            <Button onClick={() => answer(false)}>Anuluj</Button>
             <Button variant={ask?.danger ? 'danger' : 'primary'} onClick={() => answer(true)} autoFocus>
-              {ask?.action ?? t('Подтвердить', 'Potwierdź')}
+              {ask?.action ?? 'Potwierdź'}
             </Button>
           </>
         }

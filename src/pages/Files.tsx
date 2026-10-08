@@ -4,12 +4,10 @@ import { useCompany, useQuery } from '../app/session'
 import { FileGrid } from '../components/FileGrid'
 import { Loading, Segmented } from '../components/ui'
 import { isImage } from '../lib/files'
-import { useT } from '../lib/i18n'
 import { supabase } from '../lib/supabase'
 import type { FileRow } from '../lib/types'
 
 export default function FilesPage() {
-  const t = useT()
   const company = useCompany()
   const [filter, setFilter] = useState<'all' | 'images' | 'docs'>('all')
   const { data, loading, reload } = useQuery(async () => {
@@ -20,14 +18,14 @@ export default function FilesPage() {
   if (loading && !data) return <Loading />
   const files = (data ?? []).filter((f) => filter === 'all' || (filter === 'images') === isImage(f))
   return (
-    <Page crumb={t('Файлы', 'Pliki')}>
+    <Page crumb="Pliki">
       <div className="page__head">
         <div>
-          <h1>{t('Файлы', 'Pliki')}</h1>
-          <p>{t('Фото продуктов, логотипы, оферты и прайсы. Нажмите на искру у документа — ИИ прочитает его и добавит факты в базу знаний.', 'Zdjęcia produktów, logotypy, oferty i cenniki. Kliknij iskrę przy dokumencie — AI przeczyta go i doda fakty do bazy wiedzy.')}</p>
+          <h1>Pliki</h1>
+          <p>Zdjęcia produktów, logotypy, oferty i cenniki. Kliknij iskrę przy dokumencie — AI przeczyta go i doda fakty do bazy wiedzy.</p>
         </div>
         <Segmented value={filter} onChange={setFilter} options={[
-          { value: 'all', label: t('Все', 'Wszystkie') }, { value: 'images', label: t('Фото', 'Zdjęcia') }, { value: 'docs', label: t('Документы', 'Dokumenty') },
+          { value: 'all', label: 'Wszystkie' }, { value: 'images', label: 'Zdjęcia' }, { value: 'docs', label: 'Dokumenty' },
         ]} />
       </div>
       <FileGrid files={files} onChange={reload} />

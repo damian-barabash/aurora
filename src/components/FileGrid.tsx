@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { emitChanged } from '../app/Shell'
 import { useCompany } from '../app/session'
 import { canExtract, fmtSize, isImage, removeFile, uploadFile } from '../lib/files'
-import { fmtDate, useI18n, useT } from '../lib/i18n'
+import { fmtDate } from '../lib/format'
 import { api, signedUrls } from '../lib/supabase'
 import type { FileRow } from '../lib/types'
 import { cx, IconBtn, Spinner, useFeedback } from './ui'
@@ -17,8 +17,6 @@ export function FileGrid({ files, onChange, productId, kind, accept, hint }: {
   accept?: string
   hint?: string
 }) {
-  const t = useT()
-  const { lang } = useI18n()
   const company = useCompany()
   const { fail, toast, confirm } = useFeedback()
   const [urls, setUrls] = useState<Record<string, string>>({})
@@ -51,7 +49,7 @@ export function FileGrid({ files, onChange, productId, kind, accept, hint }: {
     setExtracting(file.id)
     try {
       const res = await api<{ applied: number; proposed: number }>('extract_file', { file_id: file.id })
-      toast(`${t('Из файла', 'Z pliku')}: +${res.applied} ${t('в базу', 'do bazy')}, ${res.proposed} ${t('на проверку', 'do sprawdzenia')}`)
+      toast(`${'Z pliku'}: +${res.applied} ${'do bazy'}, ${res.proposed} ${'do sprawdzenia'}`)
       emitChanged()
     } catch (e) {
       fail(e)
@@ -60,7 +58,7 @@ export function FileGrid({ files, onChange, productId, kind, accept, hint }: {
   }
 
   const remove = async (file: FileRow) => {
-    if (!(await confirm({ title: t('Удалить файл?', 'Usunąć plik?'), text: file.name, action: t('Удалить', 'Usuń'), danger: true }))) return
+    if (!(await confirm({ title: 'Usunąć plik?', text: file.name, action: 'Usuń', danger: true }))) return
     await removeFile(file)
     onChange()
     emitChanged()
@@ -78,8 +76,8 @@ export function FileGrid({ files, onChange, productId, kind, accept, hint }: {
         onKeyDown={(e) => e.key === 'Enter' && picker.current?.click()}
       >
         {uploading ? <Spinner size={20} /> : <Upload size={20} />}
-        <b>{uploading ? `${t('Загружаю', 'Wgrywam')}… ${uploading}` : t('Перетащите файлы или нажмите', 'Przeciągnij pliki lub kliknij')}</b>
-        <span>{hint ?? t('Фото, логотипы, PDF, DOCX — до 25 МБ. Из документов ИИ может извлечь факты.', 'Zdjęcia, logotypy, PDF, DOCX — do 25 MB. Z dokumentów AI może wyciągnąć fakty.')}</span>
+        <b>{uploading ? `${'Wgrywam'}… ${uploading}` : 'Przeciągnij pliki lub kliknij'}</b>
+        <span>{hint ?? 'Zdjęcia, logotypy, PDF, DOCX — do 25 MB. Z dokumentów AI może wyciągnąć fakty.'}</span>
         <input ref={picker} type="file" hidden multiple accept={accept} onChange={(e) => { if (e.target.files?.length) upload(e.target.files); e.target.value = '' }} />
       </div>
 
@@ -92,16 +90,16 @@ export function FileGrid({ files, onChange, productId, kind, accept, hint }: {
               </a>
               <figcaption>
                 <b className="truncate" title={f.name}>{f.name}</b>
-                <small>{fmtSize(f.size)} · {fmtDate(f.created_at, lang, false)}</small>
+                <small>{fmtSize(f.size)} · {fmtDate(f.created_at, false)}</small>
               </figcaption>
               <div className="fcard__acts">
                 {canExtract(f) && (
-                  <IconBtn label={t('Извлечь знания из файла', 'Wyciągnij wiedzę z pliku')} onClick={() => extract(f)} disabled={extracting === f.id}>
+                  <IconBtn label="Wyciągnij wiedzę z pliku" onClick={() => extract(f)} disabled={extracting === f.id}>
                     {extracting === f.id ? <Spinner size={15} /> : <Sparkles size={16} />}
                   </IconBtn>
                 )}
-                <a className="iconbtn" href={urls[f.path]} download={f.name} title={t('Скачать', 'Pobierz')}><Download size={16} /></a>
-                <IconBtn label={t('Удалить', 'Usuń')} onClick={() => remove(f)}><Trash2 size={16} /></IconBtn>
+                <a className="iconbtn" href={urls[f.path]} download={f.name} title="Pobierz"><Download size={16} /></a>
+                <IconBtn label="Usuń" onClick={() => remove(f)}><Trash2 size={16} /></IconBtn>
               </div>
             </figure>
           ))}

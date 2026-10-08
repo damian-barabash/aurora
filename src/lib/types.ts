@@ -6,7 +6,6 @@ export interface Profile {
   full_name: string
   avatar_url: string | null
   is_moderator: boolean
-  locale: string
   onboarding: { closed_at?: string; claude_done?: boolean; hidden?: boolean }
 }
 
@@ -17,7 +16,7 @@ export interface Company {
   description: string
   website: string | null
   logo_path: string | null
-  settings: { auto_apply?: boolean; stale_days?: number; language?: string }
+  settings: { auto_apply?: boolean; stale_days?: number }
   role: Role
 }
 

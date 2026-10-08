@@ -11,27 +11,26 @@ export const supabase = createClient(url, key, {
 
 export const FUNCTIONS_URL = `${url}/functions/v1`
 
-const ERRORS: Record<string, [string, string]> = {
-  forbidden: ['Недостаточно прав', 'Brak uprawnień'],
-  unauthorized: ['Сессия истекла, войдите снова', 'Sesja wygasła, zaloguj się ponownie'],
-  invalid_email: ['Проверьте адрес почты', 'Sprawdź adres e-mail'],
-  last_admin: ['В фирме должен остаться хотя бы один админ', 'W firmie musi zostać co najmniej jeden admin'],
-  google_not_configured: ['Google ещё не настроен модератором', 'Google nie jest jeszcze skonfigurowany przez moderatora'],
-  not_connected: ['Почта не подключена', 'Poczta nie jest podłączona'],
-  text_too_short: ['Слишком короткий текст', 'Tekst jest za krótki'],
-  unsupported_file: ['Этот формат пока не читается: подойдут PDF, DOCX, TXT, MD, CSV', 'Ten format nie jest jeszcze obsługiwany: PDF, DOCX, TXT, MD, CSV'],
-  no_text_in_file: ['В файле не нашлось текста', 'W pliku nie znaleziono tekstu'],
-  bad_url: ['Проверьте адрес сайта', 'Sprawdź adres strony'],
-  name_required: ['Укажите название', 'Podaj nazwę'],
+const ERRORS: Record<string, string> = {
+  forbidden: 'Brak uprawnień',
+  unauthorized: 'Sesja wygasła, zaloguj się ponownie',
+  invalid_email: 'Sprawdź adres e-mail',
+  last_admin: 'W firmie musi zostać co najmniej jeden admin',
+  google_not_configured: 'Google nie jest jeszcze skonfigurowany przez moderatora',
+  not_connected: 'Poczta nie jest podłączona',
+  text_too_short: 'Tekst jest za krótki',
+  unsupported_file: 'Ten format nie jest jeszcze obsługiwany: PDF, DOCX, TXT, MD, CSV',
+  no_text_in_file: 'W pliku nie znaleziono tekstu',
+  bad_url: 'Sprawdź adres strony',
+  name_required: 'Podaj nazwę',
 }
 
 export class ApiError extends Error {
   constructor(public code: string) {
     super(code)
   }
-  text(lang: 'ru' | 'pl') {
-    const hit = ERRORS[this.code]
-    return hit ? hit[lang === 'pl' ? 1 : 0] : this.code
+  text() {
+    return ERRORS[this.code] ?? this.code
   }
 }
 

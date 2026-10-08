@@ -229,7 +229,7 @@ const actions: Record<string, (me: Me, b: Body) => Promise<unknown>> = {
     const total = { applied: 0, proposed: 0, skipped: 0, titles: [] as string[] }
     for (const chunk of chunks) {
       const res = await ingestText({
-        companyId: b.company_id, source: 'file', label: String(b.label ?? 'Импорт текста').slice(0, 120),
+        companyId: b.company_id, source: 'file', label: String(b.label ?? 'Import tekstu').slice(0, 120),
         sourceUser: me.id, text: chunk, bootstrap: true, trusted: true, productHint: hint,
       })
       total.applied += res.applied

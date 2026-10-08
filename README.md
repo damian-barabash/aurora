@@ -5,6 +5,7 @@
 
 ## Стек
 
+- Интерфейс только на польском
 - React 19 + Vite 7 + TypeScript, `react-router-dom` 7, `@supabase/supabase-js`, иконки `lucide-react`
 - Supabase (проект «AURORA Backend»): Postgres + RLS, pgvector, pg_cron, Storage, Edge Functions
 - ИИ — Barabash AI (OpenAI-совместимый шлюз): `qwen3.5:27b` и `nomic-embed-text`
@@ -30,6 +31,7 @@ npm run build
 | `npm run smoke` | проверка бэкенда: чат, импорт текста, MCP |
 | `npm run e2e` | сквозной сценарий в браузере (нужен `npm run dev`) |
 | `npm run shots [desktop\|mobile]` | скриншоты всех экранов в `qc-out/` |
+| `npm run lp:shots` | настоящие экраны панели для hero лендинга → `public/lp/*.webp` |
 
 ## Edge-функции
 

@@ -31,7 +31,6 @@ const shot = async (name, full = false) => {
 const go = async (path) => { await page.goto(BASE + path, { waitUntil: 'networkidle0', timeout: 60000 }) }
 const want = (n) => !only.length || only.includes(n)
 
-await page.evaluateOnNewDocument(() => localStorage.setItem('aurora_lang', 'ru'))
 if (want('landing')) { await go('/'); await page.evaluate(() => document.querySelectorAll('.rv').forEach((e) => e.classList.add('in'))); await shot('landing', true) }
 await go('/login')
 if (want('login')) await shot('login')
