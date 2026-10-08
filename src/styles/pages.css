@@ -180,6 +180,8 @@ button.pmeta__item:hover { background: var(--fill); }
 
 /* ───────── сегодня ───────── */
 .home__hello { display: grid; gap: 10px; margin: 8px 0 22px; }
+.home__date { color: var(--muted); font-size: 15px; }
+.home__date::first-letter { text-transform: uppercase; }
 .home__hello h1 { font-size: clamp(34px, 4vw, 48px); letter-spacing: -0.045em; }
 .home__ask { display: flex; align-items: center; gap: 10px; border: 1px solid var(--line-2); border-radius: var(--r-2xl); padding: 9px 9px 9px 20px; margin-bottom: 20px; transition: border-color 0.18s; }
 .home__ask:focus-within { border-color: #000; }

@@ -65,7 +65,7 @@ export default function HomePage() {
   return (
     <Page crumb="Dzisiaj">
       <div className="home__hello">
-        <div className="eyebrow">{new Date().toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
+        <div className="home__date">{new Date().toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
         <h1>{hello}{first ? `, ${first}` : ''}</h1>
       </div>
 

@@ -133,7 +133,6 @@ export default function Landing() {
 
       <section className="lp-hero">
         <div className="lp-hero__head">
-          <div className="eyebrow lp-hero__eyebrow"><i />Sztab wiedzy Twojej firmy</div>
           <h1>Wszystko o Twoich produktach w jednym miejscu. <span>Zawsze aktualne.</span></h1>
         </div>
         <div className="lp-hero__cols">
@@ -165,7 +164,6 @@ export default function Landing() {
 
       <section className="lp-sec" id="screens">
         <div className="lp-sec__head rv">
-          <div className="eyebrow">Zobacz system</div>
           <h2>To nie makieta. AURORA już działa.</h2>
         </div>
         <Showcase />
@@ -173,7 +171,6 @@ export default function Landing() {
 
       <section className="lp-sec" id="how">
         <div className="lp-sec__head rv">
-          <div className="eyebrow">Jak to działa</div>
           <h2>Wiedza zbiera się sama. Ty rozstrzygasz tylko to, co sporne.</h2>
         </div>
         <div className="lp-steps">
@@ -190,7 +187,6 @@ export default function Landing() {
 
       <section className="lp-sec" id="features">
         <div className="lp-sec__head rv">
-          <div className="eyebrow">Możliwości</div>
           <h2>Jeden sztab dla produktów, aktualności i marki.</h2>
         </div>
         <div className="lp-bento">
@@ -207,7 +203,6 @@ export default function Landing() {
       <section className="lp-privacy" id="privacy">
         <div className="lp-privacy__in">
           <div className="lp-sec__head rv">
-            <div className="eyebrow">Prywatność</div>
             <h2>Do bazy trafia tylko to, co może wiedzieć cały zespół.</h2>
           </div>
           <div className="lp-privacy__grid">
@@ -224,7 +219,6 @@ export default function Landing() {
 
       <section className="lp-sec lp-roles">
         <div className="lp-sec__head rv">
-          <div className="eyebrow">Dostęp</div>
           <h2>Trzy role — i żadnego zamieszania.</h2>
         </div>
         <div className="lp-steps">

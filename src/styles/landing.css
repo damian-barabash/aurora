@@ -12,8 +12,6 @@
 
 .lp-hero { max-width: 1320px; margin: 0 auto; padding: clamp(40px, 6vw, 84px) clamp(16px, 4vw, 48px) 0; }
 .lp-hero__head { display: grid; gap: 22px; animation: rise 0.8s var(--ease) both; }
-.lp-hero__eyebrow { display: inline-flex; align-items: center; gap: 10px; }
-.lp-hero__eyebrow i { width: 8px; height: 8px; border-radius: 50%; background: var(--accent-2); }
 .lp-hero h1 { font-size: clamp(36px, 5vw, 72px); font-weight: 500; line-height: 1.06; letter-spacing: -0.045em; max-width: 1080px; text-wrap: balance; }
 .lp-hero h1 span { background: var(--accent); padding: 0 0.14em; border-radius: 0.1em; box-decoration-break: clone; -webkit-box-decoration-break: clone; white-space: nowrap; }
 .lp-hero__cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: clamp(20px, 4vw, 64px); align-items: start; margin-top: clamp(28px, 4vw, 52px); animation: rise 0.8s 0.12s var(--ease) both; }
@@ -76,7 +74,6 @@
 
 .lp-privacy { background: #000; color: #fff; margin-top: clamp(56px, 8vw, 112px); }
 .lp-privacy__in { max-width: 1320px; margin: 0 auto; padding: clamp(56px, 8vw, 104px) clamp(16px, 4vw, 48px); }
-.lp-privacy .eyebrow { color: var(--accent); }
 .lp-privacy__grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border-top: 1px solid #2b2b2b; }
 .lp-priv { padding: 26px 22px 6px 0; display: grid; gap: 10px; align-content: start; }
 .lp-priv + .lp-priv { padding-left: 22px; border-left: 1px solid #2b2b2b; }

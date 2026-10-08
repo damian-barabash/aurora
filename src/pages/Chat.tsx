@@ -147,7 +147,6 @@ export default function ChatPage() {
         <div className="chat__hero">
           <div className="chat__intro">
             <AppIcon size={104} className="chat__icon" />
-            <div className="eyebrow">Sztab wiedzy · {company.name}</div>
             <h1>Od czego zaczniemy?</h1>
             <p>Zapytaj o produkt, cenę lub termin. AURORA odpowie na podstawie bazy wiedzy i pokaże źródła.</p>
           </div>
