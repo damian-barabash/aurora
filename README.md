@@ -51,4 +51,4 @@ npm run build
 ## Деплой
 
 GitHub Pages через `.github/workflows/deploy.yml`, домен `aurora.fastline.pl` (`public/CNAME`).
-В настройках репозитория нужны переменные `VITE_SUPABASE_URL` и `VITE_SUPABASE_KEY`.
+Адрес проекта и публичный ключ Supabase зашиты в `src/lib/supabase.ts`; переменные `VITE_SUPABASE_URL` и `VITE_SUPABASE_KEY` нужны, только чтобы собрать сайт под другой проект.

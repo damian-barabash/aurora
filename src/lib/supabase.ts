@@ -1,7 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
 
-const url = import.meta.env.VITE_SUPABASE_URL as string
-const key = import.meta.env.VITE_SUPABASE_KEY as string
+// Адрес проекта и publishable-ключ публичны (доступ ограничивает RLS), поэтому лежат в коде:
+// сборка на GitHub Pages не зависит от переменных репозитория. Env нужен только для другого проекта.
+const url = (import.meta.env.VITE_SUPABASE_URL as string | undefined) || 'https://qgmhvvvpabyzaksntvxk.supabase.co'
+const key = (import.meta.env.VITE_SUPABASE_KEY as string | undefined) || 'sb_publishable_VfMrxT45_dJeNubGt8Hf5w_wzJ1sNUC'
 
 export const supabase = createClient(url, key, {
   auth: { persistSession: true, autoRefreshToken: true, storageKey: 'aurora_auth' },
