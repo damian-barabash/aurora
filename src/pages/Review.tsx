@@ -6,6 +6,7 @@ import { useCompany, useQuery, useSession } from '../app/session'
 import { SourceTag, useTypeLabels } from '../components/kb'
 import { Badge, Button, Empty, Field, Loading, Modal, Tabs, useFeedback } from '../components/ui'
 import { fmtDate, fmtWhen } from '../lib/format'
+import { leave } from '../lib/motion'
 import { api, supabase } from '../lib/supabase'
 import type { Entry, Proposal } from '../lib/types'
 
@@ -39,6 +40,7 @@ export default function ReviewPage() {
     setBusy(p.id)
     try {
       await api(action, { id: p.id, edits })
+      await leave(p.id, action === 'proposal_apply')
       toast(action === 'proposal_apply' ? 'Baza wiedzy zaktualizowana' : p.kind === 'conflict' ? 'Zostawiono jak w bazie' : 'Odrzucono')
       emitChanged()
     } catch (e) {
@@ -74,7 +76,7 @@ export default function ReviewPage() {
         {list.map((p) => {
           const old = p.entry_id ? data?.entries[p.entry_id] : null
           return (
-            <article key={p.id} className={`prop${p.kind === 'conflict' ? ' prop--conflict' : ''}`}>
+            <article key={p.id} data-id={p.id} className={`prop${p.kind === 'conflict' ? ' prop--conflict' : ''}`}>
               <div className="prop__top">
                 <Badge tone={p.kind === 'conflict' ? 'accent' : 'neutral'} icon={p.kind === 'conflict' ? <GitCompareArrows size={14} /> : undefined}>{kindLabel(p)}</Badge>
                 <SourceTag source={p.source} label={p.source_label} />

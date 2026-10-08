@@ -3,6 +3,8 @@
 const BASE = (Deno.env.get('BARABASH_AI_URL') ?? 'https://barabash-ai.tailcd3444.ts.net/v1').replace(/\/$/, '')
 const KEY = Deno.env.get('BARABASH_AI_KEY')!
 export const MODEL = Deno.env.get('AI_MODEL') ?? 'qwen3.5:27b'
+// czat: mniejszy model odpowiada 2–3 razy szybciej; fakty i tak pochodzą z kontekstu
+export const CHAT_MODEL = Deno.env.get('AI_CHAT_MODEL') ?? 'qwen3.5:9b'
 const EMBED_MODEL = Deno.env.get('AI_EMBED_MODEL') ?? 'nomic-embed-text:latest'
 
 export interface Msg {
@@ -56,7 +58,7 @@ export async function chatJSON<T>(system: string, user: string, maxTokens = 1800
 
 /** Strumień fragmentów tekstu odpowiedzi. */
 export async function* chatStream(messages: Msg[], signal?: AbortSignal): AsyncGenerator<string> {
-  const r = await post('/chat/completions', { model: MODEL, messages, stream: true, temperature: 0.3, max_tokens: 1500 }, signal)
+  const r = await post('/chat/completions', { model: CHAT_MODEL, messages, stream: true, temperature: 0.2, max_tokens: 1200 }, signal)
   const reader = r.body!.getReader()
   const dec = new TextDecoder()
   let buf = ''

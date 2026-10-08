@@ -6,6 +6,7 @@ import { GoogleG } from '../app/Onboarding'
 import { useCompany, useQuery, useSession } from '../app/session'
 import { Badge, Button, cx, Field, IconBtn, Spinner, useFeedback } from '../components/ui'
 import { fmtWhen } from '../lib/format'
+import { leave } from '../lib/motion'
 import { api, supabase } from '../lib/supabase'
 
 interface WebSource {
@@ -75,6 +76,7 @@ export default function IntegrationsPage() {
   }
   const removeSite = async (id: string) => {
     await api('remove_site', { company_id: company.id, id }).catch(fail)
+    await leave(id)
     sites.reload()
   }
 
@@ -161,7 +163,7 @@ export default function IntegrationsPage() {
         {(sites.data ?? []).length > 0 && (
           <div className="tokens">
             {sites.data!.map((s) => (
-              <div key={s.id} className="tokens__row">
+              <div key={s.id} data-id={s.id} className="tokens__row">
                 {s.status === 'ready' ? <CircleCheck size={16} /> : s.status === 'error' ? <TriangleAlert size={16} /> : <Spinner size={14} />}
                 <b className="truncate">{s.url.replace(/^https?:\/\//, '').replace(/\/$/, '')}</b>
                 <span className="muted grow truncate">

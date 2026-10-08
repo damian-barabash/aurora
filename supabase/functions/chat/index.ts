@@ -13,39 +13,40 @@ Deno.serve(async (req) => {
     const b = await req.json()
     const message = String(b.message ?? '').trim().slice(0, 4000)
     if (!message) throw new HttpError(400, 'empty_message')
-    await requireMember(me, b.company_id)
     const useContext = b.use_context !== false
-
+    // wyszukiwanie i dane firmy idą równolegle ze sprawdzeniem uprawnień — liczy się czas do pierwszego słowa
+    const vecP = useContext ? embed([message], 'query') : null
+    vecP?.catch(() => {})
     let chatId: string = b.chat_id
-    if (chatId) {
-      const { data: owned } = await db.from('chats').select('id').eq('id', chatId).eq('user_id', me.id).maybeSingle()
-      if (!owned) throw new HttpError(404, 'chat_not_found')
-    } else {
+    const [, owned, { data: company }, { data: brand }, { data: products }, { data: past }] = await Promise.all([
+      requireMember(me, b.company_id),
+      chatId ? db.from('chats').select('id').eq('id', chatId).eq('user_id', me.id).maybeSingle() : null,
+      db.from('companies').select('name, description').eq('id', b.company_id).single(),
+      db.from('brand').select('tagline, tone, audience').eq('company_id', b.company_id).maybeSingle(),
+      db.from('products').select('name, kind, summary').eq('company_id', b.company_id).neq('status', 'archived').limit(60),
+      chatId ? db.from('chat_messages').select('role, content').eq('chat_id', chatId).order('created_at', { ascending: false }).limit(8) : { data: [] },
+    ])
+    if (chatId && !owned?.data) throw new HttpError(404, 'chat_not_found')
+    if (!chatId) {
       const { data: created, error } = await db.from('chats').insert({
         company_id: b.company_id, user_id: me.id, title: message.replace(/\s+/g, ' ').slice(0, 70),
       }).select('id').single()
       if (error) throw new HttpError(400, error.message)
       chatId = created.id
     }
-
-    const [{ data: company }, { data: brand }, { data: products }, { data: past }] = await Promise.all([
-      db.from('companies').select('name, description').eq('id', b.company_id).single(),
-      db.from('brand').select('tagline, tone, audience').eq('company_id', b.company_id).maybeSingle(),
-      db.from('products').select('name, kind, summary').eq('company_id', b.company_id).neq('status', 'archived').limit(60),
-      db.from('chat_messages').select('role, content').eq('chat_id', chatId).order('created_at', { ascending: false }).limit(8),
-    ])
-    await db.from('chat_messages').insert({ chat_id: chatId, role: 'user', content: message })
+    const saved = db.from('chat_messages').insert({ chat_id: chatId, role: 'user', content: message }).then(() => {})
 
     // deno-lint-ignore no-explicit-any
     let sources: any[] = []
-    if (useContext) {
-      const [vec] = await embed([message], 'query')
+    if (vecP) {
+      const [vec] = await vecP
       const { data } = await db.rpc('match_entries', {
-        p_company: b.company_id, p_embedding: toVector(vec), p_query: message.slice(0, 200), p_limit: 12,
+        p_company: b.company_id, p_embedding: toVector(vec), p_query: message.slice(0, 200), p_limit: 8,
       })
       // deno-lint-ignore no-explicit-any
       sources = ((data ?? []) as any[]).filter((e) => e.score > 0.3)
     }
+    await saved
 
     const context = sources.map((e, i) =>
       `[${i + 1}] ${e.product_name ? `(${e.product_name}) ` : ''}${e.title}\n${e.body}` +

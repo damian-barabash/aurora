@@ -46,7 +46,7 @@ export const Spinner = ({ size = 16 }: { size?: number }) => <span className="sp
 
 // ───────── Модальное окно ─────────
 
-export function Modal({ open, onClose, title, subtitle, children, footer, width = 520, className }: {
+export function Modal(props: {
   open: boolean
   onClose(): void
   title?: ReactNode
@@ -56,6 +56,22 @@ export function Modal({ open, onClose, title, subtitle, children, footer, width 
   width?: number
   className?: string
 }) {
+  // podczas zamykania pokazujemy ostatnią treść — okno gaśnie, zamiast znikać
+  const last = useRef(props)
+  if (props.open) last.current = props
+  const { open, onClose } = props
+  const { title, subtitle, children, footer, width = 520, className } = open ? props : last.current
+  const [closing, setClosing] = useState(false)
+  const wasOpen = useRef(open)
+  useEffect(() => {
+    if (wasOpen.current && !open) {
+      setClosing(true)
+      const timer = setTimeout(() => setClosing(false), 180)
+      wasOpen.current = open
+      return () => clearTimeout(timer)
+    }
+    wasOpen.current = open
+  }, [open])
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -66,9 +82,9 @@ export function Modal({ open, onClose, title, subtitle, children, footer, width 
       document.body.classList.remove('locked')
     }
   }, [open, onClose])
-  if (!open) return null
+  if (!open && !closing) return null
   return createPortal(
-    <div className="modal" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className={cx('modal', !open && 'is-closing')} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className={cx('modal__box', className)} style={{ maxWidth: width }} role="dialog" aria-modal>
         <IconBtn label="Zamknij" className="modal__close" onClick={onClose}><X size={18} /></IconBtn>
         {(title || subtitle) && (

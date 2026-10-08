@@ -4,6 +4,7 @@ import { emitChanged } from '../app/Shell'
 import { useCompany } from '../app/session'
 import { canExtract, fmtSize, isImage, removeFile, uploadFile } from '../lib/files'
 import { fmtDate } from '../lib/format'
+import { leave } from '../lib/motion'
 import { api, signedUrls } from '../lib/supabase'
 import type { FileRow } from '../lib/types'
 import { cx, IconBtn, Spinner, useFeedback } from './ui'
@@ -60,6 +61,7 @@ export function FileGrid({ files, onChange, productId, kind, accept, hint }: {
   const remove = async (file: FileRow) => {
     if (!(await confirm({ title: 'Usunąć plik?', text: file.name, action: 'Usuń', danger: true }))) return
     await removeFile(file)
+    await leave(file.id)
     onChange()
     emitChanged()
   }
@@ -84,7 +86,7 @@ export function FileGrid({ files, onChange, productId, kind, accept, hint }: {
       {files.length > 0 && (
         <div className="fgrid">
           {files.map((f) => (
-            <figure key={f.id} className="fcard">
+            <figure key={f.id} data-id={f.id} className="fcard">
               <a className="fcard__view" href={urls[f.path]} target="_blank" rel="noreferrer">
                 {isImage(f) && urls[f.path] ? <img src={urls[f.path]} alt={f.name} loading="lazy" /> : <FileText size={30} />}
               </a>

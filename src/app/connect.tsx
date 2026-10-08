@@ -2,6 +2,7 @@ import { Check, Copy, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { Button, copyText, IconBtn, Segmented, useFeedback } from '../components/ui'
 import { fmtWhen } from '../lib/format'
+import { leave } from '../lib/motion'
 import { api, supabase } from '../lib/supabase'
 import type { Integration } from '../lib/types'
 import { useChanged } from './Shell'
@@ -99,6 +100,7 @@ export function ClaudeSetup({ tokens, onChange, compact }: { tokens: McpToken[];
   const revoke = async (id: string) => {
     if (!(await confirm({ title: 'Odłączyć ten link?', text: 'Claude z tym linkiem straci dostęp do bazy wiedzy.', action: 'Odłącz', danger: true }))) return
     await api('mcp_token_revoke', { id }).catch(fail)
+    await leave(id)
     onChange()
   }
 
@@ -147,7 +149,7 @@ export function ClaudeSetup({ tokens, onChange, compact }: { tokens: McpToken[];
       {!compact && tokens.length > 0 && (
         <div className="tokens">
           {tokens.map((tok) => (
-            <div key={tok.id} className="tokens__row">
+            <div key={tok.id} data-id={tok.id} className="tokens__row">
               <code>{tok.preview}</code>
               <span className="muted grow">
                 {tok.last_used_at

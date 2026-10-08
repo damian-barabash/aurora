@@ -263,7 +263,7 @@ function ChatList() {
         <div key={label}>
           <div className="side__label">{label}</div>
           {items.map((c) => (
-            <Link key={c.id} to={`/app/chat/${c.id}`} className={cx('chati', c.id === active && 'is-on')} title={c.title}>
+            <Link key={c.id} data-id={c.id} to={`/app/chat/${c.id}`} className={cx('chati', c.id === active && 'is-on')} title={c.title}>
               <span className="truncate">{c.title || 'Bez tytułu'}</span>
               {c.pinned && <Pin size={13} />}
             </Link>

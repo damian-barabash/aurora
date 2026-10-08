@@ -10,6 +10,7 @@ import { EntryEditor, ImportText, ProductEditor, ProductIcon, SourceTag, StateBa
 import { Markdown } from '../components/Markdown'
 import { Button, cx, Empty, IconBtn, Loading, Menu, MenuItem, Tabs, useFeedback } from '../components/ui'
 import { fmtDate, fmtWhen } from '../lib/format'
+import { flash, leave } from '../lib/motion'
 import { supabase } from '../lib/supabase'
 import type { Collection, Entry, EntryType, FileRow, HistoryRow, Product } from '../lib/types'
 
@@ -98,6 +99,7 @@ export default function ProductPage() {
     const patch = action === 'verify' ? { status: 'current', verified_at: new Date().toISOString(), ...(e.effective_to && e.effective_to < today ? { effective_to: null } : {}) } : { status: 'archived' }
     const { error } = await supabase.from('entries').update(patch).eq('id', e.id)
     if (error) return fail(error.message)
+    await (action === 'archive' ? leave(e.id) : flash(e.id))
     emitChanged()
   }
 
@@ -175,7 +177,7 @@ export default function ProductPage() {
           <section key={type} className="egroup">
             <h3 className="eyebrow">{types[type]} · {list.length}</h3>
             {list.map((e) => (
-              <article key={e.id} id={`e-${e.id}`} className={cx('entry', highlight === e.id && 'is-hit', expired(e) && 'is-stale')}>
+              <article key={e.id} id={`e-${e.id}`} data-id={e.id} className={cx('entry', highlight === e.id && 'is-hit', expired(e) && 'is-stale')}>
                 <div className="entry__main">
                   <h4>{e.title}{e.importance >= 2 && <span className="entry__imp">{e.importance === 3 ? 'Pilne' : 'Ważne'}</span>}</h4>
                   {e.body && <p>{e.body}</p>}

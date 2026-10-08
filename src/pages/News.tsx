@@ -7,6 +7,7 @@ import { useCompany, useQuery } from '../app/session'
 import { EntryEditor, SourceTag } from '../components/kb'
 import { Button, cx, Empty, IconBtn, Loading, Segmented } from '../components/ui'
 import { fmtDate } from '../lib/format'
+import { leave } from '../lib/motion'
 import { supabase } from '../lib/supabase'
 import type { Entry } from '../lib/types'
 
@@ -30,6 +31,7 @@ export default function NewsPage() {
   const list = (data?.entries ?? []).filter((e) => filter === 'all' || e.importance >= 2)
   const patch = async (e: Entry, values: Partial<Entry>) => {
     await supabase.from('entries').update(values).eq('id', e.id)
+    if (values.status === 'archived') await leave(e.id)
     emitChanged()
   }
   const imp = (n: number) => n >= 3 ? 'Pilne' : n === 2 ? 'Ważne' : null
@@ -48,7 +50,7 @@ export default function NewsPage() {
       <div className="feed">
         {list.length === 0 && <Empty icon={<Megaphone size={24} />} title="Brak komunikatów" text="Napisz pierwszą wiadomość dla zespołu — albo podłącz pocztę, a ważne rzeczy pojawią się same." />}
         {list.map((e) => (
-          <article key={e.id} className={cx('post', e.importance >= 3 && 'post--hot', e.pinned && 'is-pinned')}>
+          <article key={e.id} data-id={e.id} className={cx('post', e.importance >= 3 && 'post--hot', e.pinned && 'is-pinned')}>
             <div className="post__top">
               <time>{fmtDate(e.effective_from ?? e.created_at)}</time>
               {imp(e.importance) && <span className="post__imp">{imp(e.importance)}</span>}

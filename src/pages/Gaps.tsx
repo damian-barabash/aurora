@@ -7,6 +7,7 @@ import { useCompany, useQuery, useSession } from '../app/session'
 import { EntryEditor } from '../components/kb'
 import { Button, Empty, Loading, Tabs } from '../components/ui'
 import { fmtWhen } from '../lib/format'
+import { leave } from '../lib/motion'
 import { supabase } from '../lib/supabase'
 
 interface Gap {
@@ -32,6 +33,7 @@ export default function GapsPage() {
   if (loading && !data) return <Loading />
   const setStatus = async (g: Gap, status: Gap['status']) => {
     await supabase.from('knowledge_gaps').update({ status, updated_at: new Date().toISOString() }).eq('id', g.id)
+    await leave(g.id, status === 'resolved')
     reload()
   }
   const open = (data ?? []).filter((g) => g.status === 'open')
@@ -49,7 +51,7 @@ export default function GapsPage() {
       <div className="feed">
         {list.length === 0 && <Empty icon={<CircleHelp size={24} />} title={tab === 'open' ? 'Brak luk' : 'Na razie pusto'} text={tab === 'open' ? 'Na wszystkie pytania zespołu znalazła się odpowiedź w bazie.' : undefined} />}
         {list.map((g) => (
-          <article key={g.id} className="gap">
+          <article key={g.id} data-id={g.id} className="gap">
             <span className="gap__hits" title="Ile razy zapytano">{g.hits}×</span>
             <div className="grow">
               <b>{g.question}</b>

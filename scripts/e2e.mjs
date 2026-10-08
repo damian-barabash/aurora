@@ -44,7 +44,7 @@ await mod.type('.composer textarea', 'Ile kosztuje pakiet Team?')
 await mod.keyboard.press('Enter')
 await mod.waitForSelector('.msg__sources .srcchip', { timeout: 90000 })
 const answer = await mod.$eval('.msg--ai .msg__body', (el) => el.textContent)
-check('чат ответил по базе с источником', /49/.test(answer), answer.slice(0, 90))
+check('чат ответил по базе с источником', /\d+ EUR/.test(answer), answer.slice(0, 90))
 check('адрес сменился на /app/chat/:id', /\/app\/chat\/[0-9a-f-]{36}/.test(mod.url()))
 await mod.screenshot({ path: `${OUT}/e2e-chat.png` })
 

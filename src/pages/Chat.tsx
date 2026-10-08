@@ -5,8 +5,9 @@ import { Page, usePanel } from '../app/Shell'
 import { useCompany } from '../app/session'
 import { AppIcon, Mark } from '../brand/Logo'
 import { EntryEditor } from '../components/kb'
-import { Markdown } from '../components/Markdown'
+import { StreamText } from '../components/StreamText'
 import { cx, IconBtn, Menu, MenuItem, useFeedback } from '../components/ui'
+import { leave } from '../lib/motion'
 import { streamChat, supabase, type ChatSource } from '../lib/supabase'
 
 interface Msg {
@@ -43,9 +44,25 @@ export default function ChatPage() {
     })
   }, [id])
 
+  // лента сама держится у низа, пока пользователь не прокрутил вверх
+  const stick = useRef(true)
   useEffect(() => {
-    scroller.current?.scrollTo({ top: scroller.current.scrollHeight })
-  }, [messages])
+    const box = scroller.current
+    const col = box?.firstElementChild
+    if (!box || !col) return
+    const onScroll = () => { stick.current = box.scrollHeight - box.scrollTop - box.clientHeight < 80 }
+    const ro = new ResizeObserver(() => stick.current && box.scrollTo({ top: box.scrollHeight }))
+    box.addEventListener('scroll', onScroll, { passive: true })
+    ro.observe(col)
+    return () => {
+      box.removeEventListener('scroll', onScroll)
+      ro.disconnect()
+    }
+  }, [messages.length > 0])
+  useEffect(() => {
+    stick.current = true
+    scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: 'smooth' })
+  }, [messages.length])
   useEffect(() => {
     input.current?.focus()
   }, [id])
@@ -103,6 +120,7 @@ export default function ChatPage() {
   const remove = async () => {
     if (!chat || !(await confirm({ title: 'Usunąć czat?', text: chat.title, action: 'Usuń', danger: true }))) return
     await supabase.from('chats').delete().eq('id', chat.id)
+    await leave(chat.id)
     await reloadChats()
     nav('/app/chat')
   }
@@ -189,7 +207,7 @@ export default function ChatPage() {
                 <div key={m.id} className="msg msg--ai">
                   <span className="msg__ava"><Mark size={15} /></span>
                   <div className="msg__body">
-                    {m.content ? <Markdown text={m.content} /> : <span className="typing"><i /><i /><i /></span>}
+                    {m.content ? <StreamText text={m.content} streaming={!!m.pending} /> : <span className="typing"><i /><i /><i /></span>}
                     {!m.pending && m.sources?.length > 0 && (
                       <div className="msg__sources">
                         {m.sources.map((s) => (

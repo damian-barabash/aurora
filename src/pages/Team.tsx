@@ -6,6 +6,7 @@ import { CodeLine } from '../app/connect'
 import { usePeople } from '../app/people'
 import { useCompany, useQuery, useSession } from '../app/session'
 import { Avatar, Badge, Button, Field, IconBtn, Menu, MenuItem, Modal, Segmented, useFeedback } from '../components/ui'
+import { leave } from '../lib/motion'
 import { api, supabase } from '../lib/supabase'
 import type { Member } from '../lib/types'
 
@@ -56,6 +57,7 @@ export default function TeamPage() {
     if (!(await confirm({ title: 'Usunąć z firmy?', text: `${m.profile.full_name || m.profile.email} ${'straci dostęp do bazy wiedzy tej firmy.'}`, action: 'Usuń', danger: true }))) return
     try {
       await api('remove_member', { company_id: company.id, user_id: m.user_id })
+      await leave(m.user_id)
       toast('Konto usunięte')
       reload()
     } catch (e) {
@@ -77,7 +79,7 @@ export default function TeamPage() {
 
       <div className="team">
         {members.map((m) => (
-          <div key={m.user_id} className="team__row">
+          <div key={m.user_id} data-id={m.user_id} className="team__row">
             <Avatar name={m.profile.full_name || m.profile.email} size={42} />
             <div className="grow team__who">
               <b className="truncate">{m.profile.full_name || m.profile.email}{m.user_id === profile?.id && <span className="muted"> · Ty</span>}</b>

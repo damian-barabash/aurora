@@ -206,3 +206,13 @@ img, svg { display: block; }
   .modal__box { border-radius: var(--r-2xl) var(--r-2xl) 0 0; padding: 24px 20px; max-height: 92dvh; }
   .modal__body { margin: 0 -20px; padding: 2px 20px; }
 }
+
+/* ───────── отклик на действия ───────── */
+.modal.is-closing { animation: fade-out 0.18s forwards; pointer-events: none; }
+.modal.is-closing .modal__box { animation: pop-out 0.18s forwards; }
+@keyframes fade-out { to { opacity: 0; } }
+@keyframes pop-out { to { opacity: 0; transform: translateY(8px) scale(0.98); } }
+.is-flash { border-color: #000 !important; background: var(--accent-soft) !important; transition: background 0.3s, border-color 0.3s, transform 0.3s var(--ease); transform: scale(1.008); }
+.entry, .post, .prop, .gap, .team__row, .tokens__row, .fcard, .chati, .newscard, .stat, .integ { animation: rise 0.4s var(--ease) both; }
+.menu__pop { transform-origin: top right; }
+.toast { transition: opacity 0.2s; }
