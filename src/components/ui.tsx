@@ -274,7 +274,7 @@ export function MenuItem({ icon, children, onClick, danger, active }: { icon?: R
   return (
     <button type="button" role="menuitem" className={cx('menu__item', danger && 'is-danger', active && 'is-active')} onClick={onClick}>
       {icon}
-      <span>{children}</span>
+      <span className="menu__text">{children}</span>
     </button>
   )
 }

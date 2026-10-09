@@ -137,7 +137,7 @@ export default function ProductPage() {
         )}>
           {(close) => (
             <>
-              {members.map((m) => <MenuItem key={m.user_id} active={m.user_id === p.owner_id} icon={m.user_id === p.owner_id ? <Check size={17} /> : <span style={{ width: 17 }} />} onClick={() => { close(); setOwner(m.user_id) }}>{m.profile.full_name || m.profile.email}</MenuItem>)}
+              {members.map((m) => <MenuItem key={m.user_id} active={m.user_id === p.owner_id} icon={m.user_id === p.owner_id ? <Check size={17} /> : <span className="menu__gap" />} onClick={() => { close(); setOwner(m.user_id) }}>{m.profile.full_name || m.profile.email}</MenuItem>)}
               {p.owner_id && <><div className="menu__sep" /><MenuItem onClick={() => { close(); setOwner(null) }}>Usuń odpowiedzialnego</MenuItem></>}
             </>
           )}

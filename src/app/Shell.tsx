@@ -379,7 +379,7 @@ function CompanySwitch() {
           <>
             <div className="menu__label">Firmy</div>
             {companies.map((c) => (
-              <MenuItem key={c.id} active={c.id === company.id} icon={c.id === company.id ? <Check size={18} /> : <span style={{ width: 18 }} />}
+              <MenuItem key={c.id} active={c.id === company.id} icon={c.id === company.id ? <Check size={18} /> : <span className="menu__gap" />}
                 onClick={() => { close(); setCompany(c.id); nav('/app') }}>{c.name}</MenuItem>
             ))}
             {profile?.is_moderator && (

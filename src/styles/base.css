@@ -6,8 +6,9 @@
   --side: #fafafa;
   --fg: #000000;
   --fg-2: #3d3d3d;
-  --muted: #737373;
-  --faint: #a3a3a3;
+  /* вторичный текст читается и на тонированных плашках: не ниже 4.5:1 */
+  --muted: #686868;
+  --faint: #8a8a8a;
   --line: #ebebea;
   --line-2: #dededc;
   --fill: #f4f4f3;
@@ -177,7 +178,9 @@ img, svg { display: block; }
 .menu__item:hover { background: var(--fill); color: #000; }
 .menu__item.is-active { color: #000; font-weight: 500; }
 .menu__item.is-danger { color: var(--danger); }
-.menu__item span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menu__item > svg, .menu__item > .menu__gap { flex: none; }
+.menu__gap { width: 18px; }
+.menu__text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .menu__sep { height: 1px; background: var(--line); margin: 6px 4px; }
 .menu__label { padding: 8px 10px 4px; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
 
