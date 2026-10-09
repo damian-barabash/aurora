@@ -3,7 +3,7 @@
 import { mkdirSync, readdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import puppeteer from 'puppeteer-core'
-import { env } from './env.mjs'
+import { env, sql } from './env.mjs'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:5173'
 const OUT = process.env.QC_OUT ?? 'qc-out'
@@ -17,6 +17,11 @@ mkdirSync(OUT, { recursive: true })
 const browser = await puppeteer.launch({ executablePath, headless: 'new', args: ['--hide-scrollbars'] })
 const page = await browser.newPage()
 await page.setViewport(mode === 'mobile' ? { width: 390, height: 844, deviceScaleFactor: 2, isMobile: true } : { width: 1440, height: 900, deviceScaleFactor: 1 })
+// tylko firma demonstracyjna; stan «Szybkiego startu» moderatora wraca po zdjęciach
+const [{ id: demo }] = await sql(`select id from public.companies where slug = 'aurora'`)
+const [{ onboarding }] = await sql(`select onboarding from public.profiles where email = '${env.MODERATOR_EMAIL}'`)
+await sql(`update public.profiles set onboarding = '{}' where email = '${env.MODERATOR_EMAIL}'`)
+await page.evaluateOnNewDocument((id) => localStorage.setItem('aurora_company', id), demo)
 const problems = []
 page.on('console', (m) => m.type() === 'error' && problems.push(`console: ${m.text().slice(0, 200)}`))
 page.on('pageerror', (e) => problems.push(`pageerror: ${e.message.slice(0, 200)}`))
@@ -56,4 +61,5 @@ if (want('product')) {
   await shot('product')
 }
 console.log(problems.length ? `\nПроблемы:\n${[...new Set(problems)].join('\n')}` : '\nБез ошибок консоли и горизонтального скролла')
+await sql(`update public.profiles set onboarding = '${JSON.stringify(onboarding)}' where email = '${env.MODERATOR_EMAIL}'`)
 await browser.close()

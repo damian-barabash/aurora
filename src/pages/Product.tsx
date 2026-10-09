@@ -1,5 +1,5 @@
-import { Archive, Bell, BellOff, CalendarDays, Check, ClipboardPaste, Inbox, MoreHorizontal, PenLine, Plus, ShieldCheck, Trash2, UserRound } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Archive, Bell, ImagePlus, BellOff, CalendarDays, Check, ClipboardPaste, Inbox, MoreHorizontal, PenLine, Plus, ShieldCheck, Trash2, UserRound } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { emitChanged, Page, useChanged } from '../app/Shell'
 import { usePeople } from '../app/people'
@@ -11,7 +11,9 @@ import { Markdown } from '../components/Markdown'
 import { Button, cx, Empty, IconBtn, Loading, Menu, MenuItem, Tabs, useFeedback } from '../components/ui'
 import { fmtDate, fmtWhen } from '../lib/format'
 import { flash, leave } from '../lib/motion'
+import { isImage, setProductLogo } from '../lib/files'
 import { supabase } from '../lib/supabase'
+import { useSigned } from '../lib/useSigned'
 import type { Collection, Entry, EntryType, FileRow, HistoryRow, Product } from '../lib/types'
 
 type Tab = 'entries' | 'files' | 'history'
@@ -53,6 +55,13 @@ export default function ProductPage() {
     document.getElementById(`e-${highlight}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
   }, [highlight, data])
 
+  const logoPicker = useRef<HTMLInputElement>(null)
+  const media = useSigned([data?.product?.logo_path, ...(data?.files ?? []).filter((f) => f.entry_id && isImage(f)).map((f) => f.path)])
+  const photosOf = useMemo(() => {
+    const map: Record<string, FileRow[]> = {}
+    for (const f of data?.files ?? []) if (f.entry_id && isImage(f)) (map[f.entry_id] ??= []).push(f)
+    return map
+  }, [data])
   const groups = useMemo(() => ORDER.map((type) => [type, (data?.entries ?? []).filter((e) => e.type === type)] as const).filter(([, list]) => list.length), [data])
 
   if (loading && !data) return <Loading />
@@ -62,6 +71,15 @@ export default function ProductPage() {
   const today = new Date().toISOString().slice(0, 10)
   const expired = (e: Entry) => e.status === 'review' || (!!e.effective_to && e.effective_to < today)
 
+  const changeLogo = async (file: File) => {
+    try {
+      await setProductLogo(company.id, p.id, file, p.logo_path)
+      toast('Logo zapisane')
+      emitChanged()
+    } catch (e) {
+      fail(e)
+    }
+  }
   const subscribe = async () => {
     if (data.subscribed) await supabase.from('subscriptions').delete().eq('product_id', p.id).eq('user_id', profile!.id)
     else await supabase.from('subscriptions').insert({ product_id: p.id, user_id: profile!.id })
@@ -106,7 +124,11 @@ export default function ProductPage() {
   return (
     <Page crumb={<><Link to="/app/kb">Baza wiedzy</Link>/<b>{p.name}</b></>}>
       <header className="phead">
-        <ProductIcon icon={p.icon} accent size={64} />
+        <button type="button" className="phead__logo" title="Zmień logo produktu" onClick={() => logoPicker.current?.click()}>
+          <ProductIcon icon={p.icon} logo={media[p.logo_path ?? '']} accent size={64} />
+          <span><ImagePlus size={16} /></span>
+        </button>
+        <input ref={logoPicker} type="file" hidden accept="image/*" onChange={(e) => { if (e.target.files?.[0]) changeLogo(e.target.files[0]); e.target.value = '' }} />
         <div className="phead__main">
           <div className="phead__badges"><StateBadge state={p.state} />{p.kind && <span className="muted">{p.kind}</span>}</div>
           <h1>{p.name}</h1>
@@ -181,6 +203,11 @@ export default function ProductPage() {
                 <div className="entry__main">
                   <h4>{e.title}{e.importance >= 2 && <span className="entry__imp">{e.importance === 3 ? 'Pilne' : 'Ważne'}</span>}</h4>
                   {e.body && <p>{e.body}</p>}
+                  {photosOf[e.id] && (
+                    <div className="entry__photos">
+                      {photosOf[e.id].map((f) => media[f.path] && <a key={f.id} href={media[f.path]} target="_blank" rel="noreferrer"><img src={media[f.path]} alt={f.name} loading="lazy" /></a>)}
+                    </div>
+                  )}
                   <div className="entry__meta">
                     {(e.effective_from || e.effective_to) && (
                       <span><CalendarDays size={13} />{e.effective_from && `${'od'} ${fmtDate(e.effective_from)}`}{e.effective_to && ` ${'do'} ${fmtDate(e.effective_to)}`}</span>

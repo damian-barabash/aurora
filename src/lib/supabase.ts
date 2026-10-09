@@ -62,6 +62,9 @@ export interface ChatSource {
   product: string | null
   title: string
   type: string
+  /** ścieżki w buckecie: logo produktu i zdjęcia przypięte do wpisu */
+  logo?: string | null
+  images?: string[]
 }
 
 /** Strumień odpowiedzi czatu (SSE). */
@@ -95,10 +98,16 @@ export async function streamChat(
   }
 }
 
-/** Podpisane adresy plików z prywatnego bucketu. */
-export async function signedUrls(paths: string[]): Promise<Record<string, string>> {
-  const unique = [...new Set(paths.filter(Boolean))]
-  if (!unique.length) return {}
-  const { data } = await supabase.storage.from('media').createSignedUrls(unique, 3600)
-  return Object.fromEntries((data ?? []).filter((d) => d.signedUrl && d.path).map((d) => [d.path!, d.signedUrl as string]))
+const signed = new Map<string, { url: string; exp: number }>()
+
+/** Podpisane adresy plików z prywatnego bucketu. Wynik trzymamy 50 minut, żeby nie podpisywać tych samych ścieżek co ekran. */
+export async function signedUrls(paths: (string | null | undefined)[]): Promise<Record<string, string>> {
+  const unique = [...new Set(paths.filter((p): p is string => !!p))]
+  const now = Date.now()
+  const missing = unique.filter((p) => (signed.get(p)?.exp ?? 0) < now)
+  if (missing.length) {
+    const { data } = await supabase.storage.from('media').createSignedUrls(missing, 3600)
+    for (const d of data ?? []) if (d.signedUrl && d.path) signed.set(d.path, { url: d.signedUrl, exp: now + 50 * 60_000 })
+  }
+  return Object.fromEntries(unique.filter((p) => signed.has(p)).map((p) => [p, signed.get(p)!.url]))
 }

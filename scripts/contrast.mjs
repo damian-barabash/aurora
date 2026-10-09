@@ -11,6 +11,11 @@ const executablePath = `${cache}/${readdirSync(cache).sort().pop()}/chrome-mac-a
 const browser = await puppeteer.launch({ executablePath, headless: 'new' })
 const page = await browser.newPage()
 await page.setViewport({ width: 1440, height: 900 })
+// tylko firma demonstracyjna; stan «Szybkiego startu» moderatora wraca po audycie
+const [{ id: demo }] = await sql(`select id from public.companies where slug = 'aurora'`)
+const [{ onboarding }] = await sql(`select onboarding from public.profiles where email = '${env.MODERATOR_EMAIL}'`)
+await sql(`update public.profiles set onboarding = '{}' where email = '${env.MODERATOR_EMAIL}'`)
+await page.evaluateOnNewDocument((id) => localStorage.setItem('aurora_company', id), demo)
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
 
 const audit = () => page.evaluate(() => {
@@ -59,7 +64,7 @@ for (const id of ids) {
   await go(`/app/kb/${id}`); await run(`product ${id.slice(0, 4)}`)
   for (const i of [1, 2]) { await page.evaluate((n) => document.querySelectorAll('.tabs__tab')[n]?.click(), i); await run(`product ${id.slice(0, 4)} tab${i}`) }
 }
-await sql(`update public.profiles set onboarding = '{}' where email = '${env.MODERATOR_EMAIL}'`)
+await sql(`update public.profiles set onboarding = '${JSON.stringify(onboarding)}' where email = '${env.MODERATOR_EMAIL}'`)
 await browser.close()
 
 const flat = Object.entries(results)

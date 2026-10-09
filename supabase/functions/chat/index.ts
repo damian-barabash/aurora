@@ -46,6 +46,19 @@ Deno.serve(async (req) => {
       // deno-lint-ignore no-explicit-any
       sources = ((data ?? []) as any[]).filter((e) => e.score > 0.3)
     }
+    // logo produktu i zdjęcia wpisów — klient pokaże je przy odpowiedzi
+    if (sources.length) {
+      const productIds = [...new Set(sources.map((e) => e.product_id).filter(Boolean))]
+      const [{ data: logos }, { data: photos }] = await Promise.all([
+        productIds.length ? db.from('products').select('id, logo_path').in('id', productIds) : { data: [] },
+        db.from('files').select('entry_id, path').in('entry_id', sources.map((e) => e.id)).eq('kind', 'image').order('created_at'),
+      ])
+      const logoOf = new Map((logos ?? []).map((p) => [p.id, p.logo_path]))
+      for (const e of sources) {
+        e.logo = logoOf.get(e.product_id) ?? null
+        e.images = (photos ?? []).filter((f) => f.entry_id === e.id).map((f) => f.path).slice(0, 4)
+      }
+    }
     await saved
 
     const context = sources.map((e, i) =>
@@ -87,7 +100,7 @@ ${context || '(nothing relevant found)'}`
         const send = (event: string, data: unknown) => ctrl.enqueue(enc.encode(sse(event, data)))
         send('meta', {
           chat_id: chatId,
-          sources: sources.map((e, i) => ({ n: i + 1, id: e.id, product_id: e.product_id, product: e.product_name, title: e.title, type: e.type })),
+          sources: sources.map((e, i) => ({ n: i + 1, id: e.id, product_id: e.product_id, product: e.product_name, title: e.title, type: e.type, logo: e.logo ?? null, images: e.images ?? [] })),
         })
         let full = ''
         let head = ''
@@ -124,7 +137,7 @@ ${context || '(nothing relevant found)'}`
           }
         }
         const cited = new Set([...full.matchAll(/\[(\d+)\]/g)].map((m) => Number(m[1])))
-        const used = sources.map((e, i) => ({ n: i + 1, id: e.id, product_id: e.product_id, product: e.product_name, title: e.title, type: e.type }))
+        const used = sources.map((e, i) => ({ n: i + 1, id: e.id, product_id: e.product_id, product: e.product_name, title: e.title, type: e.type, logo: e.logo ?? null, images: e.images ?? [] }))
           .filter((s) => cited.has(s.n))
         if (full) {
           await db.from('chat_messages').insert({ chat_id: chatId, role: 'assistant', content: full, sources: used })

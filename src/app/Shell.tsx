@@ -1,13 +1,14 @@
 import {
-  Bell, BookOpen, Building2, Check, ChevronDown, CircleHelp, Folder, Inbox, LayoutGrid, Library, LogOut, Megaphone, Menu as MenuIcon,
-  MessageSquare, PanelLeft, Paperclip, Pin, Plug, Plus, Search, Settings, SlidersHorizontal, Sparkles, Sunrise, Users, ArrowUpRight,
+  ArrowUpRight, Bell, BookOpen, Building2, Check, ChevronDown, CircleHelp, Folder, Inbox, LayoutGrid, Library, LogOut, Megaphone, Menu as MenuIcon, MessageSquare, MoreHorizontal, PanelLeft, Paperclip, PenLine, Pin, Plug, Plus, Search, Settings, SlidersHorizontal, Sparkles, Sunrise, Trash2, Users,
 } from 'lucide-react'
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { Mark, Wordmark } from '../brand/Logo'
+import { CollectionEditor } from '../components/kb'
 import { Avatar, Button, cx, Empty, Field, IconBtn, Menu, MenuItem, Modal, useFeedback } from '../components/ui'
 import { fmtWhen } from '../lib/format'
+import { leave } from '../lib/motion'
 import { api, supabase } from '../lib/supabase'
 import type { Chat, Collection, Notification } from '../lib/types'
 import { Onboarding } from './Onboarding'
@@ -275,7 +276,19 @@ function ChatList() {
 }
 
 function KbNav() {
-  const { company } = useSession()
+  const { company, canManage } = useSession()
+  const nav = useNavigate()
+  const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState<Collection | null>(null)
+  const { confirm, fail } = useFeedback()
+  const remove = async (c: Collection) => {
+    if (!(await confirm({ title: `Usunąć kolekcję „${c.name}”?`, text: 'Produkty zostaną w bazie — stracą tylko przypisanie do tej kolekcji.', action: 'Usuń kolekcję', danger: true }))) return
+    const { error } = await supabase.from('collections').delete().eq('id', c.id)
+    if (error) return fail(error.message)
+    await leave(c.id)
+    emitChanged()
+    if (current === c.id) nav('/app/kb')
+  }
   const loc = useLocation()
   const [params] = useSearchParams()
   const [collections, setCollections] = useState<Collection[]>([])
@@ -303,10 +316,25 @@ function KbNav() {
         <Folder size={18} /><span>Wszystkie produkty</span><i>{counts.all ?? 0}</i>
       </Link>
       {collections.map((c) => (
-        <Link key={c.id} to={`/app/kb?c=${c.id}`} className={cx('subi', onList && current === c.id && 'is-on is-soft')}>
-          {icon(c.icon)}<span>{c.name}</span><i>{counts[c.id] ?? 0}</i>
-        </Link>
+        <div key={c.id} data-id={c.id} className="subrow">
+          <Link to={`/app/kb?c=${c.id}`} className={cx('subi', onList && current === c.id && 'is-on is-soft')}>
+            {icon(c.icon)}<span>{c.name}</span><i>{counts[c.id] ?? 0}</i>
+          </Link>
+          {canManage && (
+            <Menu trigger={(open, toggle) => <IconBtn label="Edytuj kolekcję" className={cx('subrow__more', open && 'is-open')} onClick={toggle}><MoreHorizontal size={16} /></IconBtn>}>
+              {(close) => (
+                <>
+                  <MenuItem icon={<PenLine size={17} />} onClick={() => { close(); setEditing(c) }}>Zmień nazwę</MenuItem>
+                  <MenuItem danger icon={<Trash2 size={17} />} onClick={() => { close(); remove(c) }}>Usuń kolekcję</MenuItem>
+                </>
+              )}
+            </Menu>
+          )}
+        </div>
       ))}
+      {canManage && <button type="button" className="subi subi--add" onClick={() => setAdding(true)}><Plus size={18} /><span>Nowa kolekcja</span></button>}
+      <CollectionEditor open={adding} onClose={(id) => { setAdding(false); if (id) nav(`/app/kb?c=${id}`) }} />
+      <CollectionEditor open={!!editing} collection={editing} onClose={() => setEditing(null)} />
       <div className="side__label">O marce</div>
       {[
         ['strategy', <BookOpen size={18} />, 'Strategia marki'],

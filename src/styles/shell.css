@@ -190,3 +190,11 @@
   .cswitch { max-width: 150px; }
 }
 .navi.is-on .navi__count.is-hot { color: #000; }
+.subi--add { width: 100%; text-align: left; color: var(--muted); }
+.subi--add:hover { color: #000; }
+.subrow { position: relative; }
+.subrow .menu { position: absolute; right: 4px; top: 4px; }
+.subrow__more { width: 32px; height: 32px; opacity: 0; background: var(--fill-2); }
+.subrow:hover .subrow__more, .subrow__more.is-open, .subrow__more:focus-visible { opacity: 1; }
+.subrow:hover .subi i, .subrow:focus-within .subi i { visibility: hidden; }
+@media (hover: none) { .subrow__more { opacity: 1; background: none; } .subrow .subi i { visibility: hidden; } }

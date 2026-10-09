@@ -13,9 +13,11 @@ await page.setViewport({ width: 1360, height: 860, deviceScaleFactor: 2 })
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
 
 // na czas zdjęć chowamy «Szybki start», potem wraca
+const [{ onboarding }] = await sql(`select onboarding from public.profiles where email = '${env.MODERATOR_EMAIL}'`)
 await sql(`update public.profiles set onboarding = '{"closed_at":"2020-01-01T00:00:00Z"}' where email = '${env.MODERATOR_EMAIL}'`)
 // dane demonstracyjne do zdjęć: konflikt źródeł, historia zmiany ceny i świeże podsumowanie
 const [{ id: cid }] = await sql(`select id from public.companies where slug = 'aurora'`)
+await page.evaluateOnNewDocument((id) => localStorage.setItem('aurora_company', id), cid)
 await sql(`
   delete from public.proposals where company_id = '${cid}' and dedupe_key = 'demo-conflict';
   insert into public.proposals (company_id, kind, source, source_label, product_id, entry_id, payload, summary, evidence, confidence, dedupe_key)
@@ -62,5 +64,7 @@ await page.keyboard.press('Enter')
 await page.waitForSelector('.msg__sources .srcchip', { timeout: 90000 })
 await snap('chat')
 
-await sql(`update public.profiles set onboarding = '{}' where email = '${env.MODERATOR_EMAIL}'`)
+const shotChat = page.url().match(/[0-9a-f-]{36}/)?.[0]
+if (shotChat) await sql(`delete from public.chats where id = '${shotChat}'`)
+await sql(`update public.profiles set onboarding = '${JSON.stringify(onboarding)}' where email = '${env.MODERATOR_EMAIL}'`)
 await browser.close()

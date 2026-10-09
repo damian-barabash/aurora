@@ -9,6 +9,7 @@ import { StreamText } from '../components/StreamText'
 import { cx, IconBtn, Menu, MenuItem, useFeedback } from '../components/ui'
 import { leave } from '../lib/motion'
 import { streamChat, supabase, type ChatSource } from '../lib/supabase'
+import { useSigned } from '../lib/useSigned'
 
 interface Msg {
   id: string
@@ -35,6 +36,7 @@ export default function ChatPage() {
   const scroller = useRef<HTMLDivElement>(null)
   const input = useRef<HTMLTextAreaElement>(null)
   const chat = chats.find((c) => c.id === id)
+  const media = useSigned(messages.flatMap((m) => (m.sources ?? []).flatMap((s) => [s.logo, ...(s.images ?? [])])))
 
   useEffect(() => {
     if (!id) return setMessages([])
@@ -208,11 +210,22 @@ export default function ChatPage() {
                   <span className="msg__ava"><Mark size={15} /></span>
                   <div className="msg__body">
                     {m.content ? <StreamText text={m.content} streaming={!!m.pending} /> : <span className="typing"><i /><i /><i /></span>}
+                    {!m.pending && m.sources?.some((s) => s.images?.some((path) => media[path])) && (
+                      <div className="msg__media">
+                        {m.sources.flatMap((s) => (s.images ?? []).filter((path) => media[path]).map((path) => (
+                          <Link key={path} to={s.product_id ? `/app/kb/${s.product_id}?e=${s.id}` : '/app/news'} title={`${s.product ? `${s.product} · ` : ''}${s.title}`}>
+                            <img src={media[path]} alt={s.title} loading="lazy" />
+                          </Link>
+                        ))).slice(0, 6)}
+                      </div>
+                    )}
                     {!m.pending && m.sources?.length > 0 && (
                       <div className="msg__sources">
                         {m.sources.map((s) => (
                           <Link key={s.n} to={s.product_id ? `/app/kb/${s.product_id}?e=${s.id}` : '/app/news'} className="srcchip">
-                            <b>{s.n}</b><span className="truncate">{s.product ? `${s.product} · ` : ''}{s.title}</span>
+                            <b>{s.n}</b>
+                            {s.logo && media[s.logo] && <img src={media[s.logo]} alt="" />}
+                            <span className="truncate">{s.product ? `${s.product} · ` : ''}{s.title}</span>
                           </Link>
                         ))}
                       </div>

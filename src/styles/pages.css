@@ -340,3 +340,27 @@ button.pmeta__item:hover { background: var(--fill); }
   .page__actions .btn--lg { flex: 1; }
   .chat__quick { justify-content: flex-start; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -14px; padding: 0 14px; }
 }
+
+/* ───────── логотипы продуктов и фото в материалах ───────── */
+.picon--logo { background: #fff; border: 1px solid var(--line); overflow: hidden; }
+.picon--logo img { width: 100%; height: 100%; object-fit: contain; padding: 12%; }
+.phead__logo { position: relative; border-radius: var(--r-lg); flex: none; }
+.phead__logo > span:last-child { position: absolute; right: -6px; bottom: -6px; width: 28px; height: 28px; border-radius: 50%; background: #000; color: #fff; display: grid; place-items: center; opacity: 0; transform: scale(0.8); transition: opacity 0.18s, transform 0.18s var(--ease); }
+.phead__logo:hover > span:last-child, .phead__logo:focus-visible > span:last-child { opacity: 1; transform: none; }
+.logopick { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.photos { display: flex; flex-wrap: wrap; gap: 8px; }
+.photos__item { position: relative; margin: 0; width: 84px; height: 84px; border-radius: var(--r-lg); overflow: hidden; border: 1px solid var(--line); background: var(--fill); animation: pop 0.3s var(--ease); }
+.photos__item img { width: 100%; height: 100%; object-fit: cover; }
+.photos__item button { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border-radius: 50%; background: #000; color: #fff; display: grid; place-items: center; }
+.photos__add { width: 84px; height: 84px; border-radius: var(--r-lg); border: 1px dashed var(--line-2); display: grid; place-items: center; align-content: center; gap: 4px; font-size: 12.5px; color: var(--muted); transition: border-color 0.18s, color 0.18s; }
+.photos__add:hover { border-color: #000; color: #000; }
+.entry__photos { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.entry__photos a { width: 96px; height: 72px; border-radius: var(--r-md); overflow: hidden; border: 1px solid var(--line); transition: transform 0.2s var(--ease); }
+.entry__photos a:hover { transform: translateY(-2px); }
+.entry__photos img { width: 100%; height: 100%; object-fit: cover; }
+.msg__media { display: flex; flex-wrap: wrap; gap: 8px; animation: rise 0.4s var(--ease) both; }
+.msg__media a { height: 132px; border-radius: var(--r-lg); overflow: hidden; border: 1px solid var(--line); transition: transform 0.2s var(--ease); }
+.msg__media a:hover { transform: translateY(-2px); }
+.msg__media img { height: 100%; width: auto; max-width: 240px; object-fit: cover; }
+.srcchip img { width: 18px; height: 18px; border-radius: 4px; object-fit: contain; flex: none; }
+.page__head h1 .menu { display: inline-block; vertical-align: middle; margin-left: 6px; letter-spacing: 0; font-weight: 400; }

@@ -17,6 +17,7 @@ const check = (name, pass, extra = '') => { pass ? ok++ : bad++; console.log(pas
 async function login(ctx, email, password) {
   const page = await ctx.newPage()
   await page.setViewport({ width: 1440, height: 900 })
+  await page.evaluateOnNewDocument((id) => localStorage.setItem('aurora_company', id), demo)
   page.on('pageerror', (e) => check('pageerror', false, e.message))
   await page.goto(`${BASE}/login`, { waitUntil: 'networkidle0' })
   await page.type('input[type=email]', email)
@@ -29,6 +30,9 @@ async function login(ctx, email, password) {
 
 const TEST = 'e2e-member@aurora.test'
 await sql(`delete from auth.users where email = '${TEST}'`)
+// test działa tylko w firmie demonstracyjnej i po sobie przywraca stan «Szybkiego startu» moderatora
+const [{ id: demo }] = await sql(`select id from public.companies where slug = 'aurora'`)
+const [{ onboarding }] = await sql(`select onboarding from public.profiles where email = '${env.MODERATOR_EMAIL}'`)
 await sql(`update public.profiles set onboarding = '{}' where email = '${env.MODERATOR_EMAIL}'`)
 
 const mod = await login(browser.defaultBrowserContext(), env.MODERATOR_EMAIL, env.MODERATOR_PASSWORD)
@@ -77,7 +81,9 @@ check('страница «Команда» закрыта для сотрудн�
 await ctx.close()
 
 await sql(`delete from auth.users where email = '${TEST}'`)
-await sql(`delete from public.chats`)
+const chatId = mod.url().match(/[0-9a-f-]{36}/)?.[0]
+if (chatId) await sql(`delete from public.chats where id = '${chatId}'`)
+await sql(`update public.profiles set onboarding = '${JSON.stringify(onboarding)}' where email = '${env.MODERATOR_EMAIL}'`)
 console.log(`\n${ok} ok, ${bad} failed`)
 await browser.close()
 process.exit(bad ? 1 : 0)

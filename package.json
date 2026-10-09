@@ -17,6 +17,7 @@
     "lp:shots": "node scripts/lp-shots.mjs"
   },
   "dependencies": {
+    "@jsquash/webp": "^1.5.0",
     "@supabase/supabase-js": "^2.45.0",
     "lucide-react": "^1.53.0",
     "react": "^19.0.0",

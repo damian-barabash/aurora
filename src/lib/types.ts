@@ -40,6 +40,7 @@ export interface Product {
   summary: string
   description: string
   cover_path: string | null
+  logo_path: string | null
   status: ProductState
   owner_id: string | null
   last_verified_at: string | null
@@ -119,6 +120,7 @@ export interface FileRow {
   id: string
   company_id: string
   product_id: string | null
+  entry_id: string | null
   kind: 'image' | 'logo' | 'document' | 'brand'
   name: string
   path: string

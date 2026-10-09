@@ -1,10 +1,12 @@
-import { Bot, Calendar, CircleCheck, Clock, FileText, Globe, Mail, MessageSquare, PenLine } from 'lucide-react'
-import { useEffect, useState, type ReactNode } from 'react'
+import { Bot, Calendar, CircleCheck, Clock, FileText, Globe, ImagePlus, Mail, MessageSquare, PenLine, X } from 'lucide-react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { emitChanged } from '../app/Shell'
 import { useSession } from '../app/session'
 import { BRAND_ICONS, BrandIcon } from '../brand/Logo'
+import { isImage, removeFile, setProductLogo, uploadFile } from '../lib/files'
 import { api, supabase } from '../lib/supabase'
-import type { Collection, Entry, EntryType, Product, ProductState, Source } from '../lib/types'
+import { useSigned } from '../lib/useSigned'
+import type { Collection, Entry, EntryType, FileRow, Product, ProductState, Source } from '../lib/types'
 import { Badge, Button, cx, Field, Modal, Segmented, Toggle, useFeedback } from './ui'
 
 export function useTypeLabels(): Record<EntryType, string> {
@@ -44,8 +46,46 @@ export function SourceTag({ source, label }: { source: Source; label?: string | 
   return <span className="srctag" title={label ?? undefined}>{SOURCE_ICON[source]}{label || names[source]}</span>
 }
 
-export function ProductIcon({ icon, accent, size = 44 }: { icon: string; accent?: boolean; size?: number }) {
+/** Znak produktu: własne logo, a gdy go nie ma — jeden z symboli marki. */
+export function ProductIcon({ icon, logo, accent, size = 44 }: { icon: string; logo?: string; accent?: boolean; size?: number }) {
+  if (logo) return <span className="picon picon--logo" style={{ width: size, height: size }}><img src={logo} alt="" /></span>
   return <span className={cx('picon', accent && 'picon--accent')} style={{ width: size, height: size }}><BrandIcon name={icon} size={size * 0.56} /></span>
+}
+
+/** Zdjęcia przy wpisie: miniatury już zapisanych, podgląd dodawanych i przycisk „dodaj”. */
+function PhotoField({ saved, pending, onAdd, onRemoveSaved, onRemovePending }: {
+  saved: FileRow[]
+  pending: File[]
+  onAdd(files: File[]): void
+  onRemoveSaved(file: FileRow): void
+  onRemovePending(index: number): void
+}) {
+  const picker = useRef<HTMLInputElement>(null)
+  const urls = useSigned(saved.map((f) => f.path))
+  const [previews, setPreviews] = useState<string[]>([])
+  useEffect(() => {
+    const list = pending.map((f) => URL.createObjectURL(f))
+    setPreviews(list)
+    return () => list.forEach((u) => URL.revokeObjectURL(u))
+  }, [pending])
+  return (
+    <div className="photos">
+      {saved.map((f) => (
+        <figure key={f.id} className="photos__item">
+          {urls[f.path] && <img src={urls[f.path]} alt={f.name} />}
+          <button type="button" aria-label="Usuń zdjęcie" onClick={() => onRemoveSaved(f)}><X size={14} /></button>
+        </figure>
+      ))}
+      {previews.map((src, i) => (
+        <figure key={src} className="photos__item">
+          <img src={src} alt="" />
+          <button type="button" aria-label="Usuń zdjęcie" onClick={() => onRemovePending(i)}><X size={14} /></button>
+        </figure>
+      ))}
+      <button type="button" className="photos__add" onClick={() => picker.current?.click()}><ImagePlus size={20} />Dodaj</button>
+      <input ref={picker} type="file" hidden multiple accept="image/*" onChange={(e) => { if (e.target.files?.length) onAdd([...e.target.files]); e.target.value = '' }} />
+    </div>
+  )
 }
 
 // ───────── редактор записи ─────────
@@ -63,8 +103,13 @@ export function EntryEditor({ open, onClose, entry, productId, preset }: {
   const blank = { type: 'fact' as EntryType, title: '', body: '', effective_from: '', effective_to: '', importance: 1, pinned: false }
   const [f, setF] = useState(blank)
   const [busy, setBusy] = useState(false)
+  const [photos, setPhotos] = useState<FileRow[]>([])
+  const [pending, setPending] = useState<File[]>([])
   useEffect(() => {
     if (!open) return
+    setPending([])
+    setPhotos([])
+    if (entry) supabase.from('files').select('*').eq('entry_id', entry.id).order('created_at').then(({ data }) => setPhotos((data ?? []) as FileRow[]))
     const src = entry ?? preset
     setF({
       type: src?.type ?? blank.type, title: src?.title ?? '', body: src?.body ?? '',
@@ -85,8 +130,14 @@ export function EntryEditor({ open, onClose, entry, productId, preset }: {
       ? supabase.from('entries').update({ ...row, status: 'current', verified_at: new Date().toISOString() }).eq('id', entry.id).select('id').single()
       : supabase.from('entries').insert({ ...row, company_id: company.id, product_id: productId ?? null, source: 'manual', verified_at: new Date().toISOString() }).select('id').single()
     const { data, error } = await q
+    if (error || !data) {
+      setBusy(false)
+      return fail(error?.message ?? 'error')
+    }
+    for (const file of pending) {
+      await uploadFile(company.id, file, { productId: entry?.product_id ?? productId ?? null, entryId: data.id, kind: 'image' }).catch(fail)
+    }
     setBusy(false)
-    if (error || !data) return fail(error?.message ?? 'error')
     api('embed', { ids: [data.id] }).catch(() => {})
     toast(entry ? 'Zapisano' : 'Dodano do bazy wiedzy')
     emitChanged()
@@ -123,6 +174,11 @@ export function EntryEditor({ open, onClose, entry, productId, preset }: {
             { value: '2', label: 'Ważne' }, { value: '3', label: 'Pilne' },
           ]} />
         </Field>
+        <Field label="Zdjęcia" hint="AI pokaże je w czacie, gdy powoła się na ten wpis. Każdy obraz zapisujemy jako WebP.">
+          <PhotoField saved={photos} pending={pending} onAdd={(files) => setPending([...pending, ...files.filter((x) => isImage({ mime: x.type, name: x.name }))])}
+            onRemovePending={(i) => setPending(pending.filter((_, j) => j !== i))}
+            onRemoveSaved={async (file) => { await removeFile(file); setPhotos(photos.filter((x) => x.id !== file.id)); emitChanged() }} />
+        </Field>
         {isNews && <Toggle checked={f.pinned} onChange={(pinned) => setF({ ...f, pinned })} label="Przypnij na górze"
           hint="Komunikat o ważności „Ważne” i wyższej dostanie cały zespół." />}
       </div>
@@ -143,8 +199,20 @@ export function ProductEditor({ open, onClose, product, collections, defaultColl
   const { fail, toast } = useFeedback()
   const [f, setF] = useState({ name: '', kind: '', icon: 'spark', summary: '', description: '', collection_id: '' })
   const [busy, setBusy] = useState(false)
+  // logo: undefined = bez zmian, File = nowe, null = usunąć
+  const [logo, setLogo] = useState<File | null | undefined>(undefined)
+  const [preview, setPreview] = useState('')
+  const logoPicker = useRef<HTMLInputElement>(null)
+  const current = useSigned([product?.logo_path])[product?.logo_path ?? '']
+  useEffect(() => {
+    if (!logo) return setPreview('')
+    const url = URL.createObjectURL(logo)
+    setPreview(url)
+    return () => URL.revokeObjectURL(url)
+  }, [logo])
   useEffect(() => {
     if (!open) return
+    setLogo(undefined)
     setF({
       name: product?.name ?? '', kind: product?.kind ?? '', icon: product?.icon ?? BRAND_ICONS[Math.floor(Math.random() * 6)],
       summary: product?.summary ?? '', description: product?.description ?? '', collection_id: product?.collection_id ?? defaultCollection ?? '',
@@ -158,8 +226,12 @@ export function ProductEditor({ open, onClose, product, collections, defaultColl
     const { data, error } = product
       ? await supabase.from('products').update(row).eq('id', product.id).select('id').single()
       : await supabase.from('products').insert({ ...row, company_id: company.id, last_verified_at: new Date().toISOString() }).select('id').single()
+    if (error || !data) {
+      setBusy(false)
+      return fail(error?.message ?? 'error')
+    }
+    if (logo !== undefined) await setProductLogo(company.id, data.id, logo, product?.logo_path).catch(fail)
     setBusy(false)
-    if (error || !data) return fail(error?.message ?? 'error')
     toast(product ? 'Zapisano' : 'Produkt dodany')
     emitChanged()
     onClose(data.id)
@@ -168,6 +240,14 @@ export function ProductEditor({ open, onClose, product, collections, defaultColl
     <Modal open={open} onClose={() => onClose()} width={600} title={product ? 'Edytuj produkt' : 'Nowy produkt'}
       footer={<><Button onClick={() => onClose()}>Anuluj</Button><Button variant="primary" busy={busy} disabled={f.name.trim().length < 2} onClick={save}>{product ? 'Zapisz' : 'Dodaj'}</Button></>}>
       <div className="form">
+        <Field label="Logo produktu" hint="PNG, JPG lub SVG — zapiszemy jako WebP. Bez logo produkt dostaje jeden ze znaków poniżej.">
+          <div className="logopick">
+            <ProductIcon icon={f.icon} logo={logo === null ? undefined : preview || current} size={64} />
+            <Button size="sm" icon={<ImagePlus size={15} />} onClick={() => logoPicker.current?.click()}>{preview || (current && logo !== null) ? 'Zmień logo' : 'Wgraj logo'}</Button>
+            {(preview || (current && logo !== null)) && <Button size="sm" variant="quiet" onClick={() => setLogo(null)}>Usuń</Button>}
+            <input ref={logoPicker} type="file" hidden accept="image/*" onChange={(e) => { if (e.target.files?.[0]) setLogo(e.target.files[0]); e.target.value = '' }} />
+          </div>
+        </Field>
         <Field label="Znak">
           <div className="iconpick">
             {BRAND_ICONS.map((name) => (
@@ -239,6 +319,38 @@ export function ImportText({ open, onClose, productId }: { open: boolean; onClos
       ) : (
         <textarea className="textarea" rows={12} autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="Wklej tutaj tekst…" />
       )}
+    </Modal>
+  )
+}
+
+// ───────── kolekcja: nowa albo zmiana nazwy ─────────
+
+export function CollectionEditor({ open, onClose, collection }: { open: boolean; onClose(id?: string): void; collection?: Collection | null }) {
+  const { company } = useSession()
+  const { fail, toast } = useFeedback()
+  const [name, setName] = useState('')
+  const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    if (open) setName(collection?.name ?? '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, collection?.id])
+  const save = async () => {
+    if (!company || !name.trim()) return
+    setBusy(true)
+    const { data, error } = collection
+      ? await supabase.from('collections').update({ name: name.trim() }).eq('id', collection.id).select('id').single()
+      : await supabase.from('collections').insert({ company_id: company.id, name: name.trim(), position: Math.floor(Date.now() / 1000) }).select('id').single()
+    setBusy(false)
+    if (error || !data) return fail(error?.message ?? 'error')
+    toast(collection ? 'Zapisano' : 'Kolekcja utworzona — przypisz do niej produkty')
+    emitChanged()
+    onClose(data.id)
+  }
+  return (
+    <Modal open={open} onClose={() => onClose()} width={420} title={collection ? 'Zmień nazwę kolekcji' : 'Nowa kolekcja'}
+      subtitle={!collection && 'Kolekcje grupują produkty w menu po lewej, np. „Szkolenia”, „Wydarzenia”, „Usługi”.'}
+      footer={<><Button onClick={() => onClose()}>Anuluj</Button><Button variant="primary" busy={busy} disabled={!name.trim()} onClick={save}>{collection ? 'Zapisz' : 'Utwórz'}</Button></>}>
+      <Field label="Nazwa"><input className="input" autoFocus value={name} maxLength={60} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && save()} /></Field>
     </Modal>
   )
 }

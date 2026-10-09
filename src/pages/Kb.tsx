@@ -1,13 +1,14 @@
-import { ArrowUpRight, ChevronDown, Clock, FileText, FolderPlus, Globe, LayoutGrid, List, Plus, Search, SlidersHorizontal, ClipboardPaste } from 'lucide-react'
+import { ArrowUpRight, ChevronDown, Clock, FileText, FolderPlus, Globe, LayoutGrid, List, MoreHorizontal, PenLine, Plus, Search, Trash2, SlidersHorizontal, ClipboardPaste } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { emitChanged, Page, useChanged } from '../app/Shell'
 import { useCompany, useQuery, useSession } from '../app/session'
 import { Mark } from '../brand/Logo'
-import { ImportText, ProductEditor, ProductIcon, StateBadge } from '../components/kb'
-import { Button, Empty, Field, Loading, Menu, MenuItem, Modal, Segmented, Tabs, useFeedback } from '../components/ui'
+import { CollectionEditor, ImportText, ProductEditor, ProductIcon, StateBadge } from '../components/kb'
+import { Button, Empty, IconBtn, Loading, Menu, MenuItem, Segmented, Tabs, useFeedback } from '../components/ui'
 import { fmtWhen, plural } from '../lib/format'
 import { supabase } from '../lib/supabase'
+import { useSigned } from '../lib/useSigned'
 import type { Collection, Product } from '../lib/types'
 
 type Tab = 'all' | 'current' | 'review'
@@ -16,7 +17,7 @@ type Sort = 'new' | 'name' | 'size'
 export default function KbPage() {
   const company = useCompany()
   const { canManage } = useSession()
-  const { fail } = useFeedback()
+  const { fail, confirm } = useFeedback()
   const nav = useNavigate()
   const [params] = useSearchParams()
   const collectionId = params.get('c')
@@ -26,7 +27,7 @@ export default function KbPage() {
   const [view, setView] = useState<'grid' | 'list'>(() => (localStorage.getItem('aurora_kb_view') as 'grid' | 'list') || 'grid')
   const [editor, setEditor] = useState(false)
   const [importing, setImporting] = useState(false)
-  const [newCollection, setNewCollection] = useState<string | null>(null)
+  const [collectionEditor, setCollectionEditor] = useState<{ collection?: Collection } | null>(null)
 
   const { data, loading, reload } = useQuery(async () => {
     const [{ data: products }, { data: collections }, { count }] = await Promise.all([
@@ -47,18 +48,18 @@ export default function KbPage() {
       .sort((a, b) => sort === 'name' ? a.name.localeCompare(b.name) : sort === 'size' ? b.entries_count - a.entries_count : +new Date(b.last_change) - +new Date(a.last_change))
   }, [inCollection, tab, q, sort])
 
+  const logos = useSigned((data?.products ?? []).map((p) => p.logo_path))
   const collection = data?.collections.find((c) => c.id === collectionId)
   const sortLabel = { new: 'Najpierw nowe', name: 'Według nazwy', size: 'Według objętości' }
   const materials = (n: number) => `${n} ${plural(n, ['materiał', 'materiały', 'materiałów'])}`
   const lastChange = (data?.products ?? []).reduce((max, p) => (p.last_change > max ? p.last_change : max), '')
 
-  const addCollection = async () => {
-    const name = newCollection?.trim()
-    if (!name) return
-    const { error } = await supabase.from('collections').insert({ company_id: company.id, name, position: data?.collections.length ?? 0 })
+  const removeCollection = async (c: Collection) => {
+    if (!(await confirm({ title: `Usunąć kolekcję „${c.name}”?`, text: 'Produkty zostaną w bazie — stracą tylko przypisanie do tej kolekcji.', action: 'Usuń kolekcję', danger: true }))) return
+    const { error } = await supabase.from('collections').delete().eq('id', c.id)
     if (error) return fail(error.message)
-    setNewCollection(null)
     emitChanged()
+    nav('/app/kb')
   }
 
   if (loading && !data) return <Loading />
@@ -67,7 +68,19 @@ export default function KbPage() {
     <Page crumb={<><Link to="/app/kb">Baza wiedzy</Link>/<b>{collection?.name ?? 'Wszystkie produkty'}</b></>}>
       <div className="page__head">
         <div>
-          <h1>{collection?.name ?? 'Baza wiedzy marki'}</h1>
+          <h1>
+            {collection?.name ?? 'Baza wiedzy marki'}
+            {collection && canManage && (
+              <Menu align="left" trigger={(_, toggle) => <IconBtn label="Kolekcja" className="kb__colmenu" onClick={toggle}><MoreHorizontal size={20} /></IconBtn>}>
+                {(close) => (
+                  <>
+                    <MenuItem icon={<PenLine size={17} />} onClick={() => { close(); setCollectionEditor({ collection }) }}>Zmień nazwę</MenuItem>
+                    <MenuItem danger icon={<Trash2 size={17} />} onClick={() => { close(); removeCollection(collection) }}>Usuń kolekcję</MenuItem>
+                  </>
+                )}
+              </Menu>
+            )}
+          </h1>
           <p>Produkty, projekty i aktualne materiały Twojego zespołu.</p>
         </div>
         <div className="page__actions">
@@ -77,7 +90,7 @@ export default function KbPage() {
                 <MenuItem icon={<ClipboardPaste size={17} />} onClick={() => { close(); setImporting(true) }}>Wklej tekst</MenuItem>
                 <MenuItem icon={<FileText size={17} />} onClick={() => { close(); nav('/app/files') }}>Z pliku (PDF, DOCX)</MenuItem>
                 <MenuItem icon={<Globe size={17} />} onClick={() => { close(); nav('/app/integrations#site') }}>Ze strony firmy</MenuItem>
-                {canManage && <><div className="menu__sep" /><MenuItem icon={<FolderPlus size={17} />} onClick={() => { close(); setNewCollection('') }}>Nowa kolekcja</MenuItem></>}
+                {canManage && <><div className="menu__sep" /><MenuItem icon={<FolderPlus size={17} />} onClick={() => { close(); setCollectionEditor({}) }}>Nowa kolekcja</MenuItem></>}
               </>
             )}
           </Menu>
@@ -128,7 +141,7 @@ export default function KbPage() {
         <div className="pgrid">
           {shown.map((p, i) => (
             <Link key={p.id} to={`/app/kb/${p.id}`} className="pcard" style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}>
-              <div className="pcard__top"><ProductIcon icon={p.icon} accent={i === 0} /><StateBadge state={p.state} /></div>
+              <div className="pcard__top"><ProductIcon icon={p.icon} logo={logos[p.logo_path ?? '']} accent={i === 0} /><StateBadge state={p.state} /></div>
               <div className="pcard__name"><h3 className="truncate">{p.name}</h3>{p.kind && <span>{p.kind}</span>}</div>
               <p>{p.summary || 'Opis nie został jeszcze dodany.'}</p>
               <div className="pcard__foot">
@@ -142,7 +155,7 @@ export default function KbPage() {
         <div className="plist">
           {shown.map((p) => (
             <Link key={p.id} to={`/app/kb/${p.id}`} className="plist__row">
-              <ProductIcon icon={p.icon} size={38} />
+              <ProductIcon icon={p.icon} logo={logos[p.logo_path ?? '']} size={38} />
               <span className="plist__name"><b className="truncate">{p.name}</b><small className="truncate">{p.summary}</small></span>
               <span className="plist__kind">{p.kind}</span>
               <span className="plist__n">{materials(p.entries_count)}</span>
@@ -162,10 +175,7 @@ export default function KbPage() {
 
       <ProductEditor open={editor} collections={data?.collections ?? []} defaultCollection={collectionId} onClose={(id) => { setEditor(false); if (id) nav(`/app/kb/${id}`) }} />
       <ImportText open={importing} onClose={() => setImporting(false)} />
-      <Modal open={newCollection !== null} onClose={() => setNewCollection(null)} width={420} title="Nowa kolekcja"
-        footer={<><Button onClick={() => setNewCollection(null)}>Anuluj</Button><Button variant="primary" disabled={!newCollection?.trim()} onClick={addCollection}>Utwórz</Button></>}>
-        <Field label="Nazwa"><input className="input" autoFocus value={newCollection ?? ''} onChange={(e) => setNewCollection(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addCollection()} /></Field>
-      </Modal>
+      <CollectionEditor open={!!collectionEditor} collection={collectionEditor?.collection} onClose={(id) => { const created = !collectionEditor?.collection; setCollectionEditor(null); if (id && created) nav(`/app/kb?c=${id}`) }} />
     </Page>
   )
 }
