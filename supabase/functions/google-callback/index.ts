@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
       access_token: await encrypt(tok.access_token),
       expires_at: new Date(Date.now() + tok.expires_in * 1000).toISOString(),
     })
-    EdgeRuntime.waitUntil(syncIntegration(integ.id, 4))
+    EdgeRuntime.waitUntil(syncIntegration(integ.id, 4, true))
     return back(st.return_to, { google: 'connected' })
   } catch (e) {
     return back(st.return_to, { google: 'error', reason: e instanceof Error ? e.message.slice(0, 80) : 'unknown' })

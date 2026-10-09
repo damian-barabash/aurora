@@ -2,7 +2,7 @@
 import { readdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import puppeteer from 'puppeteer-core'
-import { env, sql } from './env.mjs'
+import { ensureDemo, env, sql } from './env.mjs'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:5173'
 const cache = `${homedir()}/.cache/puppeteer/chrome`
@@ -16,7 +16,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms))
 const [{ onboarding }] = await sql(`select onboarding from public.profiles where email = '${env.MODERATOR_EMAIL}'`)
 await sql(`update public.profiles set onboarding = '{"closed_at":"2020-01-01T00:00:00Z"}' where email = '${env.MODERATOR_EMAIL}'`)
 // dane demonstracyjne do zdjęć: konflikt źródeł, historia zmiany ceny i świeże podsumowanie
-const [{ id: cid }] = await sql(`select id from public.companies where slug = 'aurora'`)
+const { id: cid, cleanup } = await ensureDemo()
 await page.evaluateOnNewDocument((id) => localStorage.setItem('aurora_company', id), cid)
 await sql(`
   delete from public.proposals where company_id = '${cid}' and dedupe_key = 'demo-conflict';
@@ -67,4 +67,5 @@ await snap('chat')
 const shotChat = page.url().match(/[0-9a-f-]{36}/)?.[0]
 if (shotChat) await sql(`delete from public.chats where id = '${shotChat}'`)
 await sql(`update public.profiles set onboarding = '${JSON.stringify(onboarding)}' where email = '${env.MODERATOR_EMAIL}'`)
+await cleanup()
 await browser.close()

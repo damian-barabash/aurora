@@ -2,7 +2,7 @@
 import { mkdirSync, readdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import puppeteer from 'puppeteer-core'
-import { env, sql } from './env.mjs'
+import { env, sql, ensureDemo } from './env.mjs'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:5173'
 const OUT = process.env.QC_OUT ?? 'qc-out'
@@ -31,7 +31,7 @@ async function login(ctx, email, password) {
 const TEST = 'e2e-member@aurora.test'
 await sql(`delete from auth.users where email = '${TEST}'`)
 // test działa tylko w firmie demonstracyjnej i po sobie przywraca stan «Szybkiego startu» moderatora
-const [{ id: demo }] = await sql(`select id from public.companies where slug = 'aurora'`)
+const { id: demo, cleanup } = await ensureDemo()
 const [{ onboarding }] = await sql(`select onboarding from public.profiles where email = '${env.MODERATOR_EMAIL}'`)
 await sql(`update public.profiles set onboarding = '{}' where email = '${env.MODERATOR_EMAIL}'`)
 
@@ -69,7 +69,7 @@ const navText = await member.$eval('.side', (el) => el.textContent)
 check('сотрудник не видит «Команда» и «Пробелы»', !/Zespół|Luki/.test(navText))
 check('сотрудник видит продукты фирмы', await (async () => { await member.goto(`${BASE}/app/kb`, { waitUntil: 'networkidle0' }); return (await member.$$('.pcard')).length === 6 })())
 const token = await member.evaluate(() => JSON.parse(localStorage.getItem('aurora_auth')).access_token)
-const [{ id: cid }] = await sql(`select id from public.companies where slug = 'aurora'`)
+const cid = demo
 const res = await fetch(`https://${env.SUPABASE_REF}.supabase.co/functions/v1/api`, {
   method: 'POST', headers: { Authorization: `Bearer ${token}`, 'content-type': 'application/json' },
   body: JSON.stringify({ action: 'create_user', company_id: cid, email: 'x@aurora.test', role: 'admin' }),
@@ -85,5 +85,6 @@ const chatId = mod.url().match(/[0-9a-f-]{36}/)?.[0]
 if (chatId) await sql(`delete from public.chats where id = '${chatId}'`)
 await sql(`update public.profiles set onboarding = '${JSON.stringify(onboarding)}' where email = '${env.MODERATOR_EMAIL}'`)
 console.log(`\n${ok} ok, ${bad} failed`)
+await cleanup()
 await browser.close()
 process.exit(bad ? 1 : 0)

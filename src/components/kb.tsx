@@ -127,7 +127,7 @@ export function EntryEditor({ open, onClose, entry, productId, preset }: {
       effective_from: f.effective_from || null, effective_to: f.effective_to || null,
     }
     const q = entry
-      ? supabase.from('entries').update({ ...row, status: 'current', verified_at: new Date().toISOString() }).eq('id', entry.id).select('id').single()
+      ? supabase.from('entries').update({ ...row, status: 'current', source: 'manual', source_label: null, verified_at: new Date().toISOString() }).eq('id', entry.id).select('id').single()
       : supabase.from('entries').insert({ ...row, company_id: company.id, product_id: productId ?? null, source: 'manual', verified_at: new Date().toISOString() }).select('id').single()
     const { data, error } = await q
     if (error || !data) {

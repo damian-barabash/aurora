@@ -64,7 +64,7 @@ Deno.serve(async (req) => {
     const context = sources.map((e, i) =>
       `[${i + 1}] ${e.product_name ? `(${e.product_name}) ` : ''}${e.title}\n${e.body}` +
       `${e.effective_from ? `\nValid from: ${e.effective_from}` : ''}${e.effective_to ? ` until: ${e.effective_to}` : ''}` +
-      `\nUpdated: ${String(e.updated_at).slice(0, 10)}${e.status === 'review' ? ' (NEEDS REVIEW)' : ''}`
+      `\nUpdated: ${String(e.updated_at).slice(0, 16).replace('T', ' ')}${e.status === 'review' ? ' (NEEDS REVIEW)' : ''}${(e.effective_to ?? (e.type === 'date' ? e.effective_from : null)) && (e.effective_to ?? e.effective_from) < today() ? ' (PAST — already ended)' : ''}`
     ).join('\n\n')
 
     const system = useContext
@@ -75,6 +75,8 @@ RULES
 - Company facts (prices, dates, features, conditions) come ONLY from the CONTEXT. Cite them with source numbers like [1] or [2][3] right after the sentence.
 - If the context does not contain the answer, start your reply with exactly ${NO_ANSWER} and then say briefly that this is not in the knowledge base yet and what could be added. Do not invent.
 - If a source is marked "NEEDS REVIEW" or looks outdated, say so.
+- Sources marked "PAST" describe things that already ended: do not present them as current or upcoming; use them only when the user asks about the past.
+- If two sources give different values for the same thing, use the one with the later "Updated" time and say in one sentence that an older entry states otherwise.
 - For writing tasks (posts, emails, descriptions) use the facts from the context and the brand tone of voice.
 - Do not list source metadata (update dates, statuses) unless the user asks or it matters for the answer; write dates in a natural form.
 - Answer in Polish; switch to another language only if the user writes in it. Be concise. Use Markdown (short paragraphs, lists, **bold** for key values).

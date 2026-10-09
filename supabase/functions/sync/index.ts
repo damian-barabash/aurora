@@ -27,8 +27,8 @@ Deno.serve(async (req) => {
     .order('last_sync_at', { ascending: true, nullsFirst: true }).limit(3)
   let synced = 0
   for (const it of integrations ?? []) {
-    if (left() < 45_000) break
-    await syncIntegration(it.id, 4)
+    if (left() < 60_000) break
+    await syncIntegration(it.id, 4, false, started + BUDGET_MS - 5_000)
     synced++
   }
   report.integrations = synced

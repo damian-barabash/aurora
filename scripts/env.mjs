@@ -24,3 +24,19 @@ export async function mgmt(path, init = {}) {
 }
 
 export const sql = (query) => mgmt('/database/query', { method: 'POST', body: JSON.stringify({ query }) })
+
+/**
+ * Firma demonstracyjna do testów. Jeśli jej nie ma (użytkownik ją usunął), zakładamy ją na czas testu
+ * i sprzątamy po sobie — prawdziwych firm skrypty nie dotykają.
+ */
+export async function ensureDemo() {
+  const find = async () => (await sql(`select id from public.companies where slug = 'aurora'`))[0]?.id
+  let id = await find()
+  const temporary = !id
+  if (temporary) {
+    const { execFileSync } = await import('node:child_process')
+    execFileSync(process.execPath, [new URL('./seed.mjs', import.meta.url).pathname], { stdio: 'ignore' })
+    id = await find()
+  }
+  return { id, cleanup: async () => { if (temporary) await sql(`delete from public.companies where id = '${id}'`) } }
+}

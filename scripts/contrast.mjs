@@ -3,7 +3,7 @@
 import { readdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import puppeteer from 'puppeteer-core'
-import { env, sql } from './env.mjs'
+import { env, sql, ensureDemo } from './env.mjs'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:5173'
 const cache = `${homedir()}/.cache/puppeteer/chrome`
@@ -12,7 +12,7 @@ const browser = await puppeteer.launch({ executablePath, headless: 'new' })
 const page = await browser.newPage()
 await page.setViewport({ width: 1440, height: 900 })
 // tylko firma demonstracyjna; stan «Szybkiego startu» moderatora wraca po audycie
-const [{ id: demo }] = await sql(`select id from public.companies where slug = 'aurora'`)
+const { id: demo, cleanup } = await ensureDemo()
 const [{ onboarding }] = await sql(`select onboarding from public.profiles where email = '${env.MODERATOR_EMAIL}'`)
 await sql(`update public.profiles set onboarding = '{}' where email = '${env.MODERATOR_EMAIL}'`)
 await page.evaluateOnNewDocument((id) => localStorage.setItem('aurora_company', id), demo)
@@ -59,12 +59,13 @@ await page.waitForSelector('.shell'); await wait(1500); await run('onboarding')
 if (await page.$('.ob .modal__close')) { await page.click('.ob .modal__close'); await wait(900) }
 for (const [name, path] of Object.entries({ home: '/app', chat: '/app/chat', kb: '/app/kb', news: '/app/news', review: '/app/review', files: '/app/files', brand: '/app/brand/identity', tone: '/app/brand/tone', integrations: '/app/integrations', team: '/app/team', gaps: '/app/gaps', settings: '/app/settings' })) { await go(path); await run(name) }
 // każdy produkt (w tym ten z prośbą o sprawdzenie) i jego zakładki
-const ids = (await sql(`select p.id from public.products p join public.companies c on c.id = p.company_id where c.slug = 'aurora'`)).map((r) => r.id)
+const ids = (await sql(`select id from public.products where company_id = '${demo}'`)).map((r) => r.id)
 for (const id of ids) {
   await go(`/app/kb/${id}`); await run(`product ${id.slice(0, 4)}`)
   for (const i of [1, 2]) { await page.evaluate((n) => document.querySelectorAll('.tabs__tab')[n]?.click(), i); await run(`product ${id.slice(0, 4)} tab${i}`) }
 }
 await sql(`update public.profiles set onboarding = '${JSON.stringify(onboarding)}' where email = '${env.MODERATOR_EMAIL}'`)
+await cleanup()
 await browser.close()
 
 const flat = Object.entries(results)

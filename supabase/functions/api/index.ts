@@ -177,7 +177,7 @@ const actions: Record<string, (me: Me, b: Body) => Promise<unknown>> = {
   async sync_now(me, b) {
     const { data: integ } = await db.from('integrations').select('id').eq('user_id', me.id).eq('company_id', b.company_id).eq('provider', 'google').maybeSingle()
     if (!integ) throw new HttpError(404, 'not_connected')
-    EdgeRuntime.waitUntil(syncIntegration(integ.id, 4))
+    EdgeRuntime.waitUntil(syncIntegration(integ.id, 4, true))
     return { started: true }
   },
 

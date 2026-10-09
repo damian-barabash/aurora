@@ -46,6 +46,8 @@ interface Item {
 }
 
 const TYPES = ['fact', 'price', 'date', 'news', 'announcement', 'faq', 'link']
+/** Nazwa produktu bez roku, cyfr i znaków — do rozpoznania tego samego produktu pod inną nazwą. */
+const bare = (name: string) => name.toLowerCase().replace(/\b20\d\d\b|[^\p{L} ]/gu, ' ').replace(/\s+/g, ' ').trim()
 const isDate = (s: unknown): s is string => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s)
 
 const SYSTEM = `You maintain AURORA — a company knowledge base about its PRODUCTS, services, events, prices, dates, brand and official announcements.
@@ -56,6 +58,8 @@ STRICT PRIVACY RULES — set "private": true (the item will be dropped) for anyt
 - client personal data, individual orders/complaints of a named private person, invoices, bank data, passwords, access codes
 - internal negotiations still in progress, opinions, drafts, questions without an answer
 Never copy email addresses, phone numbers of private people, greetings or signatures. Never quote the source — restate neutrally.
+
+OLD VS NEW: the text may contain outdated information (archive news, past events, last season's prices). Compare every date with TODAY. Do not extract events that already ended. When the text gives an old and a new value, keep only the new one. If EXISTING ENTRIES already hold a newer value than the text, the relation is "duplicate" (nothing to change), never "update".
 
 WHAT TO EXTRACT: product descriptions and features, prices and price changes, dates/terms/deadlines of events and launches, availability, conditions, official company announcements, changes in the offer, brand rules.
 "confirmed": true only when the text states a decision/fact definitively (e.g. "we confirm", "from 1 Nov the price is", published on the company website). Proposals, plans "maybe", questions → false.
@@ -114,7 +118,7 @@ export async function ingestText(input: IngestInput): Promise<IngestResult> {
     `SOURCE: ${input.source}`,
     input.productHint ? `THE TEXT IS ABOUT PRODUCT: ${input.productHint}` : '',
     `PRODUCTS:\n${(products ?? []).map((p) => `- ${p.name}${p.summary ? ` — ${p.summary.slice(0, 140)}` : ''}`).join('\n') || '(none yet)'}`,
-    `EXISTING ENTRIES:\n${[...refs].map(([ref, e]) => `${ref} [${e.product_name ?? 'company'}] ${e.title}: ${String(e.body).slice(0, 300)}`).join('\n') || '(none)'}`,
+    `EXISTING ENTRIES (source, last update):\n${[...refs].map(([ref, e]) => `${ref} [${e.product_name ?? 'company'}] (${e.source}, ${String(e.updated_at).slice(0, 10)}) ${e.title}: ${String(e.body).slice(0, 300)}`).join('\n') || '(none)'}`,
     `TEXT:\n"""\n${text}\n"""`,
   ].filter(Boolean).join('\n\n')
 
@@ -128,8 +132,8 @@ export async function ingestText(input: IngestInput): Promise<IngestResult> {
       result.skipped++
       continue
     }
-    const ref = it.existing ? refs.get(String(it.existing).trim()) : null
-    const relation = ref ? it.relation : 'new'
+    let ref = it.existing ? refs.get(String(it.existing).trim()) : null
+    let relation = ref ? it.relation : 'new'
     if (relation === 'duplicate' && ref) {
       // to samo potwierdzone z nowego źródła = wpis nadal aktualny
       await db.from('entries').update({ verified_at: new Date().toISOString() }).eq('id', ref.id)
@@ -160,23 +164,64 @@ export async function ingestText(input: IngestInput): Promise<IngestResult> {
     let newProduct: { name: string; summary: string } | null = null
     if (!productId && productName) {
       productId = productByName.get(productName.toLowerCase()) ?? null
+      // „Ice Driving Experience 2027” to ten sam produkt co „Ice Driving Experience” — nie zakładamy bliźniaka
+      if (!productId) {
+        const wanted = bare(productName)
+        for (const [name, id] of productByName) {
+          const have = bare(name)
+          if (have.length >= 4 && wanted.length >= 4 && (have === wanted || have.startsWith(wanted) || wanted.startsWith(have))) {
+            productId = id
+            break
+          }
+        }
+      }
       if (!productId) newProduct = { name: productName.slice(0, 80), summary: String(it.product_summary ?? '').slice(0, 300) }
     }
 
-    const sure = input.trusted || (it.confirmed && confidence >= 0.7)
-    const direct = autoApply && sure && relation !== 'conflict' && (!newProduct || input.bootstrap)
-
-    // ostatnia zapora przed dublem: ten sam tytuł i ta sama data już są w bazie
+    // zapora przed dublami: model bywa pewny, że fakt jest „nowy”, choć baza już go zna innymi słowami
     if (relation === 'new') {
       let twin = db.from('entries').select('id').eq('company_id', input.companyId).neq('status', 'archived').ilike('title', fields.title.replace(/[%_\\]/g, ' '))
       twin = fields.effective_from ? twin.eq('effective_from', fields.effective_from) : twin.is('effective_from', null)
       const { data: same } = await twin.limit(1)
-      if (same?.length) {
-        await db.from('entries').update({ verified_at: new Date().toISOString() }).eq('id', same[0].id)
+      let duplicateOf: string | null = same?.[0]?.id ?? null
+      if (!duplicateOf) {
+        const [vec] = await embed([`${productName ? productName + '. ' : ''}${fields.title}. ${fields.body}`], 'document')
+        const { data: near } = await db.rpc('nearest_entries', { p_company: input.companyId, p_embedding: toVector(vec), p_limit: 3 })
+        // deno-lint-ignore no-explicit-any
+        for (const hit of (near ?? []) as any[]) {
+          const sameDates = hit.effective_from === fields.effective_from && hit.effective_to === fields.effective_to
+          const sameProduct = !productId || !hit.product_id || hit.product_id === productId
+          if (hit.cos >= 0.955 && sameDates) duplicateOf = hit.id
+          else if (fields.type === 'date' && hit.type === 'date' && sameProduct && hit.cos >= 0.88) {
+            if (sameDates) duplicateOf = hit.id
+            else {
+              // ten sam termin z inną datą: nie dopisujemy drugiego, człowiek wybiera właściwy
+              relation = 'conflict'
+              ref = hit
+            }
+          }
+          if (duplicateOf || relation === 'conflict') break
+        }
+      }
+      if (duplicateOf) {
+        await db.from('entries').update({ verified_at: new Date().toISOString() }).eq('id', duplicateOf)
         result.skipped++
         continue
       }
     }
+
+    // strona WWW pełna jest starych aktualności: minione wydarzenia pomijamy
+    const ended = fields.effective_to ?? fields.effective_from
+    if (input.source === 'website' && fields.type === 'date' && ended && ended < today()) {
+      result.skipped++
+      continue
+    }
+    // to, co wpisał lub poprawił człowiek, zmienia tylko człowiek; strona nie nadpisuje też faktów z poczty
+    const guarded = relation === 'update' && ref && (ref.source === 'manual' || (input.source === 'website' && ref.source !== 'website'))
+    if (guarded && !input.trusted) relation = 'conflict'
+
+    const sure = input.trusted || (it.confirmed && confidence >= 0.7)
+    const direct = autoApply && sure && relation !== 'conflict' && (!newProduct || input.bootstrap)
 
     if (direct) {
       if (newProduct) {

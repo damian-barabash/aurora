@@ -1,6 +1,6 @@
 // Szybki test backendu na żywym projekcie: czat, import tekstu (prywatne odpada, konflikt do kolejki), MCP.
 import { readFileSync } from 'node:fs'
-import { env, sql } from './env.mjs'
+import { ensureDemo, env, sql } from './env.mjs'
 
 const base = `https://${env.SUPABASE_REF}.supabase.co`
 const anon = readFileSync(new URL('../.env.local', import.meta.url), 'utf8').match(/VITE_SUPABASE_KEY=(.*)/)[1]
@@ -10,7 +10,7 @@ const session = await (await fetch(`${base}/auth/v1/token?grant_type=password`, 
 })).json()
 const h = { apikey: anon, Authorization: `Bearer ${session.access_token}`, 'content-type': 'application/json' }
 const api = async (action, body = {}) => (await fetch(`${base}/functions/v1/api`, { method: 'POST', headers: h, body: JSON.stringify({ action, ...body }) })).json()
-const [{ id: cid }] = await sql(`select id from public.companies where slug = 'aurora'`)
+const { id: cid, cleanup } = await ensureDemo()
 
 async function ask(message) {
   const t0 = Date.now()
@@ -36,4 +36,5 @@ const init = await rpc('initialize', { protocolVersion: '2025-06-18', capabiliti
 console.log('\nMCP init →', init.result.serverInfo, '· tools:', (await rpc('tools/list', {})).result.tools.map((t) => t.name).join(', '))
 console.log('MCP search →', (await rpc('tools/call', { name: 'aurora_search', arguments: { query: 'cena Team' } })).result.content[0].text.slice(0, 400))
 console.log('MCP zły token →', (await fetch(url + 'x', { method: 'POST', body: '{}' })).status)
-await sql(`delete from public.mcp_tokens where name = 'smoke'`)
+await sql(`delete from public.mcp_tokens where name = 'smoke'; delete from public.entries where source_label = 'smoke'; delete from public.chats where company_id = '${cid}'`)
+await cleanup()
