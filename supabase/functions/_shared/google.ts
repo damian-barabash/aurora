@@ -124,6 +124,9 @@ interface Integration {
 export async function syncIntegration(integrationId: string, maxMails = 5) {
   const { data: integ } = await db.from('integrations').select('id, user_id, company_id, cursor, stats').eq('id', integrationId).single()
   if (!integ) return
+  // druga synchronizacja tej samej skrzynki w tym samym czasie = te same maile dwa razy
+  const { data: claimed } = await db.rpc('claim_integration', { p_id: integrationId })
+  if (!claimed) return
   const it = integ as Integration
   const { data: prof } = await db.from('profiles').select('full_name, email').eq('id', it.user_id).single()
   const who = prof?.full_name || prof?.email || ''
@@ -225,7 +228,7 @@ export async function syncIntegration(integrationId: string, maxMails = 5) {
     }
 
     await db.from('integrations').update({
-      status: 'active', last_error: null, last_sync_at: new Date().toISOString(), cursor, stats,
+      status: 'active', last_error: null, last_sync_at: new Date().toISOString(), cursor, stats, locked_until: null,
     }).eq('id', it.id)
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)
@@ -234,6 +237,7 @@ export async function syncIntegration(integrationId: string, maxMails = 5) {
       last_error: message.slice(0, 300),
       last_sync_at: new Date().toISOString(),
       stats,
+      locked_until: null,
     }).eq('id', it.id)
   }
 }

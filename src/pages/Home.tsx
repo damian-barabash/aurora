@@ -32,7 +32,8 @@ export default function HomePage() {
       supabase.from('entries').select('*').eq('company_id', company.id).in('type', ['announcement', 'news']).eq('status', 'current')
         .order('pinned', { ascending: false }).order('importance', { ascending: false }).order('created_at', { ascending: false }).limit(3),
       supabase.from('entries').select('*').eq('company_id', company.id).in('status', ['current', 'review']).gte('effective_from', today)
-        .order('effective_from').limit(6),
+        // termin to wydarzenie (typ „date”) albo zmiana, która dopiero nadejdzie; „obowiązuje od dziś” terminem nie jest
+        .or(`type.eq.date,effective_from.gt.${today}`).order('effective_from').limit(12),
       supabase.from('history').select('*').eq('company_id', company.id).order('created_at', { ascending: false }).limit(8),
     ])
     return {
@@ -53,6 +54,11 @@ export default function HomePage() {
   const hello = hour < 5 ? 'Dobrej nocy' : hour < 12 ? 'Dzień dobry' : hour < 18 ? 'Dzień dobry' : 'Dobry wieczór'
   const first = (profile?.full_name || '').split(' ')[0]
   const productName = Object.fromEntries(d.products.map((p) => [p.id, p.name]))
+  // jeden dzień = jedna plakietka z datą, pod nią wszystkie wpisy z tego dnia
+  const days = Object.entries(d.dates.reduce<Record<string, Entry[]>>((acc, e) => {
+    (acc[e.effective_from!] ??= []).push(e)
+    return acc
+  }, {})).slice(0, 6)
   const ask = () => q.trim() && nav(`/app/chat?q=${encodeURIComponent(q.trim())}`)
   const makeDigest = async () => {
     setDigesting(true)
@@ -123,13 +129,19 @@ export default function HomePage() {
           <h2 className="section-title">Najbliższe terminy</h2>
           {d.dates.length ? (
             <div className="dates">
-              {d.dates.map((e) => {
-                const date = new Date(`${e.effective_from}T12:00:00`)
+              {days.map(([day, list]) => {
+                const date = new Date(`${day}T12:00:00`)
                 return (
-                  <Link key={e.id} to={e.product_id ? `/app/kb/${e.product_id}?e=${e.id}` : '/app/news'} className="dates__row">
+                  <div key={day} className="dates__group">
                     <span className="dates__day"><b>{date.getDate()}</b>{date.toLocaleDateString('pl-PL', { month: 'short' }).replace('.', '')}</span>
-                    <span className="grow"><b className="truncate">{e.title}</b><small className="truncate">{e.product_id ? productName[e.product_id] : company.name}</small></span>
-                  </Link>
+                    <div className="dates__items">
+                      {list.map((e) => (
+                        <Link key={e.id} to={e.product_id ? `/app/kb/${e.product_id}?e=${e.id}` : '/app/news'} className="dates__row">
+                          <b className="truncate">{e.title}</b><small className="truncate">{e.product_id ? productName[e.product_id] : company.name}</small>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
                 )
               })}
             </div>

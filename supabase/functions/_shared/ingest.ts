@@ -70,6 +70,7 @@ WHAT TO EXTRACT: product descriptions and features, prices and price changes, da
 "title": short (max 80 chars), specific. "body": 1–4 full sentences with all concrete values (numbers, currency, dates). Write title, body and evidence in Polish (keep product names and proper nouns unchanged).
 "evidence": one neutral sentence explaining where this comes from, WITHOUT names of private people and without quoting.
 Dates as YYYY-MM-DD. If the year is missing, choose the nearest future date relative to TODAY.
+"effective_from" is set ONLY when the text names a concrete date (an event day, a deadline, "from 1 November"). Never fill it with TODAY just because the information is new — leave null. Use type "date" only for events and deadlines that happen on a specific day.
 
 Return ONLY JSON: {"items":[{"product":string|null,"product_summary":string,"type":string,"title":string,"body":string,"effective_from":string|null,"effective_to":string|null,"importance":0,"confirmed":true,"private":false,"confidence":0.0,"relation":"new","existing":string|null,"evidence":string}]}
 If there is nothing worth storing return {"items":[]}. Most private emails contain nothing — that is the expected answer.`
@@ -164,6 +165,18 @@ export async function ingestText(input: IngestInput): Promise<IngestResult> {
 
     const sure = input.trusted || (it.confirmed && confidence >= 0.7)
     const direct = autoApply && sure && relation !== 'conflict' && (!newProduct || input.bootstrap)
+
+    // ostatnia zapora przed dublem: ten sam tytuł i ta sama data już są w bazie
+    if (relation === 'new') {
+      let twin = db.from('entries').select('id').eq('company_id', input.companyId).neq('status', 'archived').ilike('title', fields.title.replace(/[%_\\]/g, ' '))
+      twin = fields.effective_from ? twin.eq('effective_from', fields.effective_from) : twin.is('effective_from', null)
+      const { data: same } = await twin.limit(1)
+      if (same?.length) {
+        await db.from('entries').update({ verified_at: new Date().toISOString() }).eq('id', same[0].id)
+        result.skipped++
+        continue
+      }
+    }
 
     if (direct) {
       if (newProduct) {
