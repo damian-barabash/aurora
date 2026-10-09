@@ -13,7 +13,6 @@ import { supabase } from '../lib/supabase'
 interface Gap {
   id: string
   question: string
-  user_id: string | null
   status: 'open' | 'resolved' | 'ignored'
   hits: number
   updated_at: string
@@ -21,14 +20,20 @@ interface Gap {
 
 export default function GapsPage() {
   const company = useCompany()
-  const { canManage } = useSession()
+  const { canManage, profile } = useSession()
   const { names } = usePeople()
   const [tab, setTab] = useState<'open' | 'closed'>('open')
   const [answer, setAnswer] = useState<Gap | null>(null)
   const { data, loading, reload } = useQuery(async () => {
-    const { data: gaps } = await supabase.from('knowledge_gaps').select('*').eq('company_id', company.id).order('hits', { ascending: false }).order('updated_at', { ascending: false }).limit(200)
+    const { data: gaps } = await supabase.from('knowledge_gaps').select('id, question, status, hits, updated_at').eq('company_id', company.id).order('hits', { ascending: false }).order('updated_at', { ascending: false }).limit(200)
     return (gaps ?? []) as Gap[]
   }, [company.id])
+  // autora pytania zna tylko moderator — baza nie oddaje tej kolumny nikomu innemu
+  const authors = useQuery(async () => {
+    if (!profile?.is_moderator) return {} as Record<string, string>
+    const { data: rows } = await supabase.rpc('gap_authors', { p_company: company.id })
+    return Object.fromEntries(((rows ?? []) as { gap_id: string; user_id: string | null }[]).filter((r) => r.user_id).map((r) => [r.gap_id, r.user_id!])) as Record<string, string>
+  }, [company.id, profile?.is_moderator])
   if (!canManage) return <Navigate to="/app" replace />
   if (loading && !data) return <Loading />
   const setStatus = async (g: Gap, status: Gap['status']) => {
@@ -55,7 +60,7 @@ export default function GapsPage() {
             <span className="gap__hits" title="Ile razy zapytano">{g.hits}×</span>
             <div className="grow">
               <b>{g.question}</b>
-              <small className="muted">{g.user_id && names[g.user_id] ? `${names[g.user_id]} · ` : ''}{fmtWhen(g.updated_at)}</small>
+              <small className="muted">{authors.data?.[g.id] && names[authors.data[g.id]] ? `${names[authors.data[g.id]]} · ` : ''}{fmtWhen(g.updated_at)}</small>
             </div>
             {g.status === 'open' ? (
               <>

@@ -106,7 +106,36 @@ const actions: Record<string, (me: Me, b: Body) => Promise<unknown>> = {
     await db.from('mcp_tokens').delete().eq('company_id', b.company_id).eq('user_id', b.user_id)
     // konto bez żadnej firmy nie ma po co istnieć; moderatora nie usuwamy nigdy
     const { count } = await db.from('company_members').select('company_id', { count: 'exact', head: true }).eq('user_id', b.user_id)
-    if (!count && !target.is_moderator) await db.auth.admin.deleteUser(b.user_id)
+    if (!count && !target.is_moderator && !(me.is_moderator && b.keep_account)) await db.auth.admin.deleteUser(b.user_id)
+    return { ok: true }
+  },
+
+  // ───────── moderator: kto ma dostęp do której firmy ─────────
+  async list_accounts(me) {
+    requireModerator(me)
+    const [{ data: profiles }, { data: members }] = await Promise.all([
+      db.from('profiles').select('id, email, full_name, is_moderator, created_at').order('created_at'),
+      db.from('company_members').select('user_id, company_id, role'),
+    ])
+    return {
+      accounts: (profiles ?? []).map((p) => ({
+        ...p,
+        companies: (members ?? []).filter((m) => m.user_id === p.id).map((m) => ({ company_id: m.company_id, role: m.role })),
+      })),
+    }
+  },
+
+  /** Dostęp do firmy nadaje wyłącznie moderator albo administrator tej firmy — nikt nie widzi „wszystkiego”. */
+  async assign_member(me, b) {
+    requireModerator(me)
+    const role = b.role === 'admin' ? 'admin' : 'member'
+    const [{ data: user }, { data: company }] = await Promise.all([
+      db.from('profiles').select('id').eq('id', b.user_id).maybeSingle(),
+      db.from('companies').select('id').eq('id', b.company_id).maybeSingle(),
+    ])
+    if (!user || !company) throw new HttpError(404, 'not_found')
+    const { error } = await db.from('company_members').upsert({ company_id: b.company_id, user_id: b.user_id, role })
+    if (error) throw new HttpError(400, error.message)
     return { ok: true }
   },
 

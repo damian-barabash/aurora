@@ -366,3 +366,17 @@ button.pmeta__item:hover { background: var(--fill); }
 .msg__media img { height: 100%; width: auto; max-width: 240px; object-fit: cover; }
 .srcchip img { width: 18px; height: 18px; border-radius: 4px; object-fit: contain; flex: none; }
 .page__head h1 .menu { display: inline-block; vertical-align: middle; margin-left: 6px; letter-spacing: 0; font-weight: 400; }
+
+/* доступ к фирмам */
+.access { border: 1px solid var(--line); border-radius: var(--r-xl); }
+.access__row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; flex-wrap: wrap; }
+.access__row + .access__row { border-top: 1px solid var(--line); }
+.access__who { display: grid; min-width: 180px; flex: 0 1 240px; }
+.access__who b { font-weight: 600; }
+.access__who small { color: var(--muted); font-size: 13px; }
+.access__chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; flex: 1; min-width: 220px; }
+.access__chip { display: inline-flex; align-items: center; height: 32px; border-radius: var(--r-md); background: var(--fill); font-size: 13.5px; animation: pop 0.25s var(--ease); }
+.access__chip.is-admin { background: var(--accent); }
+.access__chip > .menu > button { height: 32px; padding: 0 4px 0 10px; font-weight: 500; }
+.access__chip > button { width: 28px; height: 32px; display: grid; place-items: center; border-radius: 0 var(--r-md) var(--r-md) 0; }
+.access__chip > button:hover { background: rgba(0, 0, 0, 0.08); }

@@ -5,6 +5,7 @@ import { CreateCompany, Page } from '../app/Shell'
 import { useCompany, useSession } from '../app/session'
 import { Badge, Button, Field, IconBtn, Toggle, useFeedback } from '../components/ui'
 import { api, supabase } from '../lib/supabase'
+import { AccessMatrix } from './Access'
 
 export default function SettingsPage() {
   const company = useCompany()
@@ -134,6 +135,14 @@ export default function SettingsPage() {
             ))}
           </div>
           <CreateCompany open={create} onClose={() => setCreate(false)} />
+        </section>
+      )}
+
+      {profile?.is_moderator && (
+        <section className="card settings">
+          <h2 className="card__title">Konta i dostęp do firm</h2>
+          <p className="muted">Administrator i pracownik widzą tylko firmy, do których ich przypiszesz. Dostęp do wszystkich firm ma wyłącznie moderator.</p>
+          <AccessMatrix />
         </section>
       )}
     </Page>
