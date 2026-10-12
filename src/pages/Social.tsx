@@ -106,7 +106,8 @@ export default function SocialPage() {
   useEffect(() => {
     if (!back) return
     if (back === 'error') toast('Logowanie nie powiodło się. Spróbuj ponownie.', 'error')
-    else if (back === 'nopages') toast('Nie wybrano żadnej strony, na której możesz publikować.', 'error')
+    else if (back === 'nopages') toast('Facebook nie przekazał żadnej strony. Podłącz ponownie i w oknie Facebooka wybierz „Zmień ustawienia”, a potem zaznacz strony.', 'error')
+    else if (back === 'noperm') toast('Facebook nie przyznał prawa do publikowania. Podłącz ponownie i w oknie Facebooka wybierz „Zmień ustawienia”.', 'error')
     else toast('Konto podłączone')
     setParams({ tab: 'accounts' }, { replace: true })
     if (back !== 'connected') return

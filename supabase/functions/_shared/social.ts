@@ -1,7 +1,7 @@
 // Publikacje w LinkedIn i Instagramie przez Unipile: podłączanie kont bez duplikatów, dostęp, kolejka postów.
 
 import { chat } from './ai.ts'
-import { APP_URL, db, decrypt, encrypt, FUNCTIONS_URL, getSetting, HttpError, type Me, randomToken, requireMember } from './core.ts'
+import { APP_URL, db, decrypt, encrypt, FUNCTIONS_URL, getSetting, HttpError, type Me, randomToken, requireMember, setSetting } from './core.ts'
 
 // deno-lint-ignore no-explicit-any
 type Any = any
@@ -183,7 +183,24 @@ export async function metaCallback(req: Request): Promise<Response> {
       pages.push(...(d.data ?? []))
       next = d.paging?.next ?? null
     }
+    // Strony z portfolio firmowego (Business Manager) nie pojawiają się w /me/accounts bez business_management.
+    // Identyfikatory stron wybranych w oknie Meta są jednak w tokenie — dociągamy je pojedynczo.
+    const dbg: Any = await graph('/debug_token', { input_token: long.access_token, access_token: client.id + '|' + client.secret }).catch(() => null)
+    const picked: string[] = [...new Set<string>((dbg?.data?.granular_scopes ?? [])
+      .filter((g: Any) => g.scope === 'pages_manage_posts' || g.scope === 'pages_show_list')
+      .flatMap((g: Any) => (g.target_ids ?? []).map(String)))]
+    for (const id of picked.filter((x) => !pages.some((p) => String(p.id) === x)).slice(0, 50)) {
+      const p: Any = await graph('/' + id, { fields: 'id,name,access_token', access_token: long.access_token }).catch((e) => ({ id, name: '', error: String(e.message ?? e) }))
+      pages.push(p)
+    }
     const usable = pages.filter((p) => p.access_token && (!p.tasks || p.tasks.includes('CREATE_CONTENT') || p.tasks.includes('MANAGE')))
+    // co faktycznie przyznał użytkownik — bez tokenów; pozwala odróżnić „nie wybrano stron” od „brak uprawnienia”
+    const perms: Any = await graph('/me/permissions', { access_token: long.access_token }).catch(() => ({ data: [] }))
+    const granted: string[] = (perms.data ?? []).filter((x: Any) => x.status === 'granted').map((x: Any) => x.permission)
+    await setSetting('meta_last_login', JSON.stringify({
+      at: new Date().toISOString(), granted, picked: picked.length, pages: pages.map((p) => ({ name: p.name, tasks: p.tasks ?? null, token: !!p.access_token, error: p.error ?? null })),
+    }))
+    if (!granted.includes('pages_manage_posts')) return back(st.return_to, 'noperm')
     if (!usable.length) return back(st.return_to, 'nopages')
     for (const p of usable) {
       // ta sama strona u drugiej osoby = ten sam wiersz: druga osoba zostaje współwłaścicielem
