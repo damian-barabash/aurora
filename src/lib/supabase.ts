@@ -23,6 +23,18 @@ const ERRORS: Record<string, string> = {
   no_text_in_file: 'W pliku nie znaleziono tekstu',
   bad_url: 'Sprawdź adres strony',
   name_required: 'Podaj nazwę',
+  social_not_configured: 'Publikacje nie są jeszcze skonfigurowane',
+  no_targets: 'Wybierz co najmniej jedno konto',
+  empty_post: 'Dodaj tekst albo zdjęcie',
+  bad_date: 'Sprawdź datę publikacji',
+  account_needs_reconnect: 'Konto wymaga ponownego podłączenia',
+  instagram_needs_media: 'Instagram wymaga zdjęcia lub wideo',
+  story_one_file: 'Relacja to dokładnie jeden plik',
+  unknown_page: 'To konto nie zarządza już tą stroną',
+  not_in_company: 'Dostęp można dać tylko osobie z tej firmy albo moderatorowi',
+  publishing_now: 'Post właśnie się publikuje — spróbuj za chwilę',
+  brief_required: 'Wybierz produkt albo opisz, o czym ma być post',
+  ai_empty: 'Model nie zwrócił tekstu — spróbuj ponownie',
 }
 
 export class ApiError extends Error {

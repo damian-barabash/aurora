@@ -1,5 +1,5 @@
 import {
-  ArrowUpRight, Bell, BookOpen, Building2, Check, ChevronDown, CircleHelp, Folder, Inbox, LayoutGrid, Library, LogOut, Megaphone, Menu as MenuIcon, MessageSquare, MoreHorizontal, PanelLeft, Paperclip, PenLine, Pin, Plug, Plus, Search, Settings, SlidersHorizontal, Sparkles, Sunrise, Trash2, Users,
+  ArrowUpRight, Bell, BookOpen, Building2, Check, ChevronDown, CircleHelp, Folder, Inbox, LayoutGrid, Library, LogOut, Megaphone, Menu as MenuIcon, MessageSquare, MoreHorizontal, PanelLeft, Paperclip, PenLine, Pin, Plug, Plus, Search, Send, Settings, SlidersHorizontal, Sparkles, Sunrise, Trash2, Users,
 } from 'lucide-react'
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
@@ -162,6 +162,7 @@ function Sidebar({ collapsed, onCollapse }: { collapsed: boolean; onCollapse(): 
     { to: '/app/chat', icon: <MessageSquare size={20} />, label: 'Czaty', count: chats.length || undefined },
     { to: '/app/kb', icon: <Library size={20} />, label: 'Baza wiedzy', also: 'brand' },
     { to: '/app/news', icon: <Megaphone size={20} />, label: 'Komunikaty' },
+    { to: '/app/social', icon: <Send size={20} />, label: 'Publikacje' },
     { to: '/app/review', icon: <Inbox size={20} />, label: 'Do sprawdzenia', count: pending || undefined, hot: pending > 0 },
     { to: '/app/files', icon: <Paperclip size={20} />, label: 'Pliki' },
   ]

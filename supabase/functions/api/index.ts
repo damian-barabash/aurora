@@ -7,6 +7,7 @@ import {
 import { generateDigest } from '../_shared/digest.ts'
 import { GOOGLE_SCOPES, googleClient, REDIRECT_URI, stripHtml, syncIntegration } from '../_shared/google.ts'
 import { applyProposal, embedEntries, ingestText } from '../_shared/ingest.ts'
+import { socialActions } from '../_shared/social.ts'
 import { crawlStep, safeUrl, startCrawl } from '../_shared/web.ts'
 
 // deno-lint-ignore no-explicit-any
@@ -34,6 +35,9 @@ async function adminCount(companyId: string) {
 }
 
 const actions: Record<string, (me: Me, b: Body) => Promise<unknown>> = {
+  // ───────── publikacje w mediach społecznościowych ─────────
+  ...socialActions,
+
   // ───────── firmy i konta ─────────
   async create_company(me, b) {
     requireModerator(me)
@@ -104,6 +108,7 @@ const actions: Record<string, (me: Me, b: Body) => Promise<unknown>> = {
     await db.from('company_members').delete().eq('company_id', b.company_id).eq('user_id', b.user_id)
     await db.from('integrations').delete().eq('company_id', b.company_id).eq('user_id', b.user_id)
     await db.from('mcp_tokens').delete().eq('company_id', b.company_id).eq('user_id', b.user_id)
+    await db.from('social_access').delete().eq('company_id', b.company_id).eq('user_id', b.user_id)
     // konto bez żadnej firmy nie ma po co istnieć; moderatora nie usuwamy nigdy
     const { count } = await db.from('company_members').select('company_id', { count: 'exact', head: true }).eq('user_id', b.user_id)
     if (!count && !target.is_moderator && !(me.is_moderator && b.keep_account)) await db.auth.admin.deleteUser(b.user_id)

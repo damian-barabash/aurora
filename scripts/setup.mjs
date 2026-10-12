@@ -11,6 +11,7 @@ await mgmt('/secrets', {
     { name: 'CRON_SECRET', value: env.CRON_SECRET },
     { name: 'TOKEN_KEY', value: env.TOKEN_KEY },
     { name: 'APP_URL', value: APP_URL },
+    ...(env.UNIPILE_DSN && env.UNIPILE_KEY ? [{ name: 'UNIPILE_DSN', value: env.UNIPILE_DSN }, { name: 'UNIPILE_KEY', value: env.UNIPILE_KEY }] : []),
   ]),
 })
 console.log('✓ secrets')
@@ -42,5 +43,14 @@ await sql(`
         body := '{}'::jsonb,
         timeout_milliseconds := 5000)
     $job$);
+    perform cron.unschedule(jobid) from cron.job where jobname = 'aurora-social';
+    perform cron.schedule('aurora-social', '* * * * *', $job$
+      select net.http_post(
+        url := '${base}/functions/v1/social/cron',
+        headers := jsonb_build_object('content-type', 'application/json', 'x-cron-secret',
+          (select decrypted_secret from vault.decrypted_secrets where name = 'aurora_cron_secret')),
+        body := '{}'::jsonb,
+        timeout_milliseconds := 5000)
+    $job$);
   end $$;`)
-console.log('✓ cron aurora-sync co 5 min')
+console.log('✓ cron aurora-sync co 5 min, aurora-social co minutę')

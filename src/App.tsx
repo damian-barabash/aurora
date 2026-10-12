@@ -14,6 +14,7 @@ const News = lazy(() => import('./pages/News'))
 const Review = lazy(() => import('./pages/Review'))
 const Files = lazy(() => import('./pages/Files'))
 const Integrations = lazy(() => import('./pages/Integrations'))
+const Social = lazy(() => import('./pages/Social'))
 const Team = lazy(() => import('./pages/Team'))
 const Gaps = lazy(() => import('./pages/Gaps'))
 const Settings = lazy(() => import('./pages/Settings'))
@@ -33,6 +34,7 @@ export default function App() {
         <Route path="brand" element={<Navigate to="/app/brand/strategy" replace />} />
         <Route path="brand/:section" element={page(<Brand />)} />
         <Route path="news" element={page(<News />)} />
+        <Route path="social" element={page(<Social />)} />
         <Route path="review" element={page(<Review />)} />
         <Route path="files" element={page(<Files />)} />
         <Route path="integrations" element={page(<Integrations />)} />

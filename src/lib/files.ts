@@ -53,6 +53,37 @@ export async function toWebp(file: File, maxSide = 2400, quality = 0.86): Promis
   }
 }
 
+/**
+ * Zdjęcie do mediów społecznościowych: sieci nie przyjmują WebP, więc tu zawsze JPEG (przezroczystość na białym tle).
+ */
+export async function toJpeg(file: File, maxSide = 2160, quality = 0.9): Promise<File> {
+  const url = URL.createObjectURL(file)
+  try {
+    const img = new Image()
+    img.decoding = 'async'
+    img.src = url
+    await img.decode()
+    const srcW = img.naturalWidth || 1080
+    const srcH = img.naturalHeight || 1080
+    const scale = Math.min(1, maxSide / Math.max(srcW, srcH))
+    if (file.type === 'image/jpeg' && scale === 1) return file
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round(srcW * scale))
+    canvas.height = Math.max(1, Math.round(srcH * scale))
+    const ctx = canvas.getContext('2d')!
+    ctx.fillStyle = '#fff'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality))
+    if (!blob) throw new Error('encode')
+    return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' })
+  } catch {
+    throw new Error('Nie udało się odczytać obrazu — spróbuj JPG lub PNG')
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+}
+
 /** Plik trafia do prywatnego bucketu: {firma}/{produkt|common}/{losowy id}-{nazwa}. Obrazy zawsze jako WebP. */
 export async function uploadFile(companyId: string, original: File, opts: { productId?: string | null; entryId?: string | null; kind?: FileRow['kind'] } = {}): Promise<FileRow> {
   const file = await toWebp(original)
