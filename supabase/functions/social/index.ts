@@ -4,7 +4,7 @@
 //   /social/cron   — pg_cron co minutę: zaplanowane posty, przerwane publikacje, stan kont
 
 import { db, json } from '../_shared/core.ts'
-import { adoptAccount, failStuck, metaCallback, runDue, syncAccounts } from '../_shared/social.ts'
+import { adoptAccount, dropOrphans, failStuck, metaCallback, runDue, syncAccounts } from '../_shared/social.ts'
 
 Deno.serve(async (req) => {
   const route = new URL(req.url).pathname.split('/').pop()
@@ -20,7 +20,8 @@ Deno.serve(async (req) => {
       return json({ ok: true, ...res })
     } catch (e) {
       console.error('social notify', e)
-      return json({ error: String(e) }, 500)
+      const refused = e instanceof Error && (e.message === 'not_fresh' || e.message === 'not_owner')
+      return json({ error: refused ? 'forbidden' : 'failed' }, refused ? 403 : 500)
     }
   }
 
@@ -30,6 +31,7 @@ Deno.serve(async (req) => {
     if (req.headers.get('x-cron-secret') !== Deno.env.get('CRON_SECRET')) return json({ error: 'forbidden' }, 403)
     const started = Date.now()
     await failStuck()
+    await dropOrphans().catch(() => 0)
     const sent = await runDue(null, started + 120_000)
     // stan kont wystarczy sprawdzać co 10 minut
     const accounts = new Date().getMinutes() % 10 === 0 ? await syncAccounts().catch(() => -1) : null

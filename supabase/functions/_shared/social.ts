@@ -80,6 +80,15 @@ export async function adoptAccount(unipileId: string, userId: string, companyId:
 
   let keep = fresh
   const { data: known } = await db.from('social_accounts').select('id').eq('unipile_id', fresh.id).maybeSingle()
+  // Zgłoszenie przychodzi z zewnątrz, więc nie ufamy samemu identyfikatorowi: przyjmujemy tylko konto utworzone przed chwilą
+  // (świeże logowanie) albo ponowne logowanie kogoś, kto już jest jego właścicielem. Dzięki temu nie da się ani przejąć,
+  // ani usunąć starego konta, z którego korzysta inny projekt.
+  if (known) {
+    const { data: own } = await db.from('social_access').select('role').eq('account_id', known.id).eq('user_id', userId).eq('role', 'owner').limit(1)
+    if (!own?.length) throw new Error('not_owner')
+  } else if (!(Date.now() - new Date(fresh.created_at).getTime() < 20 * 60_000)) {
+    throw new Error('not_fresh')
+  }
   if (!known) {
     const twins = (await listUnipile())
       .filter((a) => a.id !== fresh.id && a.type === fresh.type && networkId(a) === pid && statusOf(a) === 'ok')
@@ -294,7 +303,7 @@ async function publishTarget(t: Any, post: Any, files: Map<string, Blob>) {
       status: 'published', provider_post_id: res?.post_id ?? null, published_at: new Date().toISOString(), error: null, locked_at: null,
     }).eq('id', t.id)
   } catch (e) {
-    const message = e instanceof Error ? (e.name === 'TimeoutError' ? 'Sieć nie odpowiedziała na czas' : e.message) : String(e)
+    const message = e instanceof Error ? (e.name === 'TimeoutError' ? 'Sieć nie odpowiedziała na czas. Sprawdź profil, zanim ponowisz — post mógł się opublikować.' : e.message) : String(e)
     await db.from('social_targets').update({ status: 'failed', error: message.slice(0, 300), locked_at: null }).eq('id', t.id)
     if (post.author_id) {
       await db.from('notifications').insert({
@@ -323,6 +332,26 @@ export async function runDue(postId: string | null = null, deadline = Date.now()
     }
   }
   return sent
+}
+
+/** Osoba straciła dostęp do konta: to, co zaplanowała i co jeszcze nie wyszło, nie może zostać opublikowane. */
+async function cancelPending(accountId: string, userId: string) {
+  const { data: posts } = await db.from('social_posts').select('id').eq('author_id', userId)
+  if (!posts?.length) return
+  await db.from('social_targets').update({ status: 'rejected', error: 'Autor nie ma już dostępu do tego konta' })
+    .eq('account_id', accountId).in('status', ['approval', 'scheduled']).in('post_id', posts.map((p) => p.id))
+}
+
+/** Konto bez żadnego właściciela (usunięty użytkownik lub firma) znika razem z dostępami, które ten właściciel rozdał. */
+export async function dropOrphans() {
+  const [{ data: accounts }, { data: owners }] = await Promise.all([
+    db.from('social_accounts').select('id'),
+    db.from('social_access').select('account_id').eq('role', 'owner'),
+  ])
+  const owned = new Set((owners ?? []).map((o) => o.account_id))
+  const orphans = (accounts ?? []).filter((a) => !owned.has(a.id)).map((a) => a.id)
+  if (orphans.length) await db.from('social_accounts').delete().in('id', orphans)
+  return orphans.length
 }
 
 /** Cel, który utknął w „publishing” (funkcja padła w trakcie), nie jest ponawiany sam — mógłby wyjść drugi raz. */
@@ -419,6 +448,8 @@ export const socialActions: Record<string, (me: Me, b: Body) => Promise<unknown>
   /** Odłącza konto tylko w AURORA. W Unipile zostaje — mogą z niego korzystać inne projekty. */
   async social_disconnect(me, b) {
     await db.from('social_access').delete().eq('account_id', b.account_id).eq('user_id', me.id).eq('company_id', b.company_id)
+    const { count } = await db.from('social_access').select('user_id', { count: 'exact', head: true }).eq('account_id', b.account_id).eq('user_id', me.id)
+    if (!count) await cancelPending(b.account_id, me.id)
     if (!(await ownersOf(b.account_id)).length) await db.from('social_accounts').delete().eq('id', b.account_id)
     return { ok: true }
   },
@@ -454,6 +485,8 @@ export const socialActions: Record<string, (me: Me, b: Body) => Promise<unknown>
     await requireOwner(me, b.company_id, b.account_id)
     await db.from('social_access').delete()
       .eq('account_id', b.account_id).eq('user_id', b.user_id).eq('company_id', b.company_id).eq('role', 'publisher')
+    const { count } = await db.from('social_access').select('user_id', { count: 'exact', head: true }).eq('account_id', b.account_id).eq('user_id', b.user_id)
+    if (!count) await cancelPending(b.account_id, b.user_id)
     return { ok: true }
   },
 

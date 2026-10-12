@@ -290,7 +290,7 @@ function Composer({ accounts, onSent }: { accounts: Account[]; onSent(tab: 'queu
         </section>
 
         <section className="soc-box">
-          <div className="soc-box__head"><b>Gdzie publikujemy</b>{all.length > 1 && <button type="button" className="soc-link" onClick={() => setPicked(picked.length === all.filter((p) => p.kind === 'feed').length ? [] : all.filter((p) => p.kind === 'feed').map((p) => p.key))}>{picked.length ? 'Odznacz' : 'Zaznacz wszystkie'}</button>}</div>
+          <div className="soc-box__head"><b>Gdzie publikujemy</b>{all.length > 1 && <button type="button" className="soc-link" onClick={() => setPicked(picked.length ? [] : all.filter((p) => p.kind === 'feed' && p.account.status === 'ok').map((p) => p.key))}>{picked.length ? 'Odznacz' : 'Zaznacz wszystkie'}</button>}</div>
           <div className="soc-places">
             {all.map((p) => (
               <label key={p.key} className={cx('soc-place', picked.includes(p.key) && 'is-on', p.account.status !== 'ok' && 'is-off')}>

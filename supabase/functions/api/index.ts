@@ -61,6 +61,9 @@ const actions: Record<string, (me: Me, b: Body) => Promise<unknown>> = {
     requireModerator(me)
     const { data: files } = await db.from('files').select('path').eq('company_id', b.company_id)
     if (files?.length) await db.storage.from('media').remove(files.map((f) => f.path))
+    const { data: posts } = await db.from('social_posts').select('media').eq('company_id', b.company_id)
+    const social = (posts ?? []).flatMap((p) => (p.media as { path: string }[]).map((m) => m.path))
+    if (social.length) await db.storage.from('social').remove(social)
     const { error } = await db.from('companies').delete().eq('id', b.company_id)
     if (error) throw new HttpError(400, error.message)
     return { ok: true }
