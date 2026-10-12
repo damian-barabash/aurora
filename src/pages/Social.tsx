@@ -13,7 +13,7 @@ import { flash, leave } from '../lib/motion'
 import { toJpeg } from '../lib/files'
 import { api, supabase } from '../lib/supabase'
 
-type Provider = 'linkedin' | 'instagram'
+type Provider = 'linkedin' | 'instagram' | 'facebook'
 type Kind = 'feed' | 'story'
 
 interface Person { user_id: string; name: string; role: 'owner' | 'publisher'; needs_approval: boolean }
@@ -28,7 +28,7 @@ interface Account {
   needs_approval: boolean
   people: Person[]
 }
-interface Listing { configured: boolean; accounts: Account[]; moderators: { id: string; name: string }[] }
+interface Listing { configured: boolean; facebook: boolean; accounts: Account[]; moderators: { id: string; name: string }[] }
 interface Media { path: string; mime: string; name: string; size: number; url?: string | null }
 interface Target {
   id: string
@@ -47,12 +47,17 @@ interface Post { id: string; text: string; scheduled_at: string | null; created_
 interface Place { key: string; account: Account; provider: Provider; kind: Kind; org?: { urn: string; name: string }; title: string; sub: string }
 
 const LIMIT = { instagram: 2200, linkedin: 3000 }
+const NETWORK: Record<Provider, string> = { instagram: 'Instagram', linkedin: 'LinkedIn', facebook: 'Facebook' }
 const MAX_FILE = 50 * 1024 * 1024
 const isVideo = (m: { mime: string }) => m.mime.startsWith('video/')
 
 export const NetIcon = ({ provider, size = 18 }: { provider: Provider; size?: number }) => provider === 'instagram' ? (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
     <rect x="3" y="3" width="18" height="18" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.4" cy="6.6" r="0.6" fill="currentColor" />
+  </svg>
+) : provider === 'facebook' ? (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+    <path d="M13.5 21v-7.5h2.6l.4-3h-3V8.6c0-.9.3-1.5 1.6-1.5h1.5V4.4c-.3 0-1.2-.1-2.2-.1-2.3 0-3.9 1.4-3.9 4v2.2H8v3h2.5V21h3Z" />
   </svg>
 ) : (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
@@ -67,6 +72,8 @@ function places(accounts: Account[]): Place[] {
     if (a.provider === 'instagram') {
       out.push({ key: `${a.id}||feed`, account: a, provider: 'instagram', kind: 'feed', title: a.name, sub: 'Instagram · post' })
       out.push({ key: `${a.id}||story`, account: a, provider: 'instagram', kind: 'story', title: a.name, sub: 'Instagram · relacja' })
+    } else if (a.provider === 'facebook') {
+      out.push({ key: `${a.id}||feed`, account: a, provider: 'facebook', kind: 'feed', title: a.name, sub: 'Facebook · strona' })
     } else {
       out.push({ key: `${a.id}||feed`, account: a, provider: 'linkedin', kind: 'feed', title: a.name, sub: 'LinkedIn · profil osobisty' })
     }
@@ -89,7 +96,7 @@ export default function SocialPage() {
   const tab = (['new', 'queue', 'done', 'accounts'].includes(params.get('tab') ?? '') ? params.get('tab') : 'new') as 'new' | 'queue' | 'done' | 'accounts'
   const setTab = (t: string) => setParams(t === 'new' ? {} : { tab: t }, { replace: true })
 
-  const list = useQuery(() => api<Listing>('social_list', { company_id: company.id }).catch((e) => { fail(e); return { configured: false, accounts: [], moderators: [] } as Listing }), [company.id])
+  const list = useQuery(() => api<Listing>('social_list', { company_id: company.id }).catch((e) => { fail(e); return { configured: false, facebook: false, accounts: [], moderators: [] } as Listing }), [company.id])
   const posts = useQuery(() => api<{ posts: Post[] }>('social_posts', { company_id: company.id }).then((d) => d.posts).catch(() => [] as Post[]), [company.id])
   const reloadList = list.reload
   const reloadPosts = posts.reload
@@ -99,9 +106,10 @@ export default function SocialPage() {
   useEffect(() => {
     if (!back) return
     if (back === 'error') toast('Logowanie nie powiodło się. Spróbuj ponownie.', 'error')
+    else if (back === 'nopages') toast('Nie wybrano żadnej strony, na której możesz publikować.', 'error')
     else toast('Konto podłączone')
     setParams({ tab: 'accounts' }, { replace: true })
-    if (back === 'error') return
+    if (back !== 'connected') return
     let n = 0
     const timer = setInterval(() => { reloadList(); if (++n >= 6) clearInterval(timer) }, 2500)
     return () => clearInterval(timer)
@@ -128,7 +136,7 @@ export default function SocialPage() {
       <div className="page__head">
         <div>
           <h1>Publikacje</h1>
-          <p>Jeden post na Instagram i LinkedIn naraz — z podglądem, planowaniem i akceptacją.</p>
+          <p>Jeden post na Instagram, Facebook i LinkedIn naraz — z podglądem, planowaniem i akceptacją.</p>
         </div>
       </div>
       <Tabs value={tab} onChange={setTab} tabs={[
@@ -140,7 +148,7 @@ export default function SocialPage() {
 
       {tab === 'new' && (accounts.length
         ? <Composer accounts={accounts} onSent={(where) => { reloadPosts(); setTab(where) }} />
-        : <Empty icon={<Send size={24} />} title="Najpierw podłącz konto" text="Podłącz Instagram lub LinkedIn, a potem publikuj na wszystkie konta jednym kliknięciem."
+        : <Empty icon={<Send size={24} />} title="Najpierw podłącz konto" text="Podłącz Instagram, Facebook lub LinkedIn, a potem publikuj na wszystkie konta jednym kliknięciem."
             action={<Button variant="primary" onClick={() => setTab('accounts')}>Przejdź do kont</Button>} />)}
 
       {tab === 'queue' && (queue.length
@@ -177,6 +185,7 @@ function Composer({ accounts, onSent }: { accounts: Account[]; onSent(tab: 'queu
   const views = [
     chosen.find((p) => p.provider === 'instagram' && p.kind === 'feed') && { value: 'instagram', label: 'Instagram' },
     chosen.find((p) => p.kind === 'story') && { value: 'story', label: 'Relacja' },
+    chosen.find((p) => p.provider === 'facebook') && { value: 'facebook', label: 'Facebook' },
     chosen.find((p) => p.provider === 'linkedin') && { value: 'linkedin', label: 'LinkedIn' },
   ].filter(Boolean) as { value: string; label: string }[]
   const current = views.find((v) => v.value === view)?.value ?? views[0]?.value
@@ -185,6 +194,7 @@ function Composer({ accounts, onSent }: { accounts: Account[]; onSent(tab: 'queu
   const problems: string[] = []
   const hasIg = chosen.some((p) => p.provider === 'instagram')
   const hasLi = chosen.some((p) => p.provider === 'linkedin')
+  const hasFb = chosen.some((p) => p.provider === 'facebook')
   if (!text.trim() && !media.length) problems.push('Dodaj tekst albo zdjęcie')
   if (hasIg && !media.length) problems.push('Instagram wymaga zdjęcia lub wideo')
   if (chosen.some((p) => p.kind === 'story') && media.length !== 1) problems.push('Relacja to dokładnie jeden plik')
@@ -192,6 +202,7 @@ function Composer({ accounts, onSent }: { accounts: Account[]; onSent(tab: 'queu
   if (hasIg && (text.match(/#[\p{L}\d_]+/gu)?.length ?? 0) > 30) problems.push('Instagram: najwyżej 30 hashtagów')
   if (hasLi && text.length > LIMIT.linkedin) problems.push(`LinkedIn: tekst dłuższy niż ${LIMIT.linkedin} znaków`)
   if (hasLi && media.some(isVideo) && media.length > 1) problems.push('LinkedIn: wideo tylko jako pojedynczy plik')
+  if (hasFb && media.some(isVideo) && media.length > 1) problems.push('Facebook: wideo tylko jako pojedynczy plik')
   if (chosen.some((p) => p.account.status !== 'ok')) problems.push('Jedno z kont wymaga ponownego podłączenia')
   const approval = chosen.filter((p) => p.account.needs_approval).length
 
@@ -321,7 +332,7 @@ function Composer({ accounts, onSent }: { accounts: Account[]; onSent(tab: 'queu
           {views.length > 1 && <Segmented value={current!} onChange={setView} options={views} />}
         </div>
         {shown
-          ? current === 'linkedin' ? <LinkedInPreview place={shown} text={text} media={media} />
+          ? current === 'linkedin' || current === 'facebook' ? <LinkedInPreview place={shown} text={text} media={media} />
             : current === 'story' ? <StoryPreview place={shown} media={media} />
               : <InstagramPreview place={shown} text={text} media={media} />
           : <p className="soc-preview__empty">Zaznacz konto, żeby zobaczyć, jak post będzie wyglądał.</p>}
@@ -417,16 +428,20 @@ function StoryPreview({ place, media }: { place: Place; media: Media[] }) {
   )
 }
 
+/** LinkedIn i Facebook mają ten sam układ posta: tekst nad zdjęciem; różnią się miejscem ucięcia i przyciskami. */
 function LinkedInPreview({ place, text, media }: { place: Place; text: string; media: Media[] }) {
+  const fb = place.provider === 'facebook'
   return (
     <div className="pv pv--li">
       <div className="pv__head">
         <Avatar name={place.title} size={44} />
         <div className="grow"><b className="truncate">{place.title}</b><small>Teraz · <Globe size={11} /></small></div>
       </div>
-      {text && <p className="pv__text"><Clamp text={text} limit={210} more="zobacz więcej" /></p>}
+      {text && <p className="pv__text"><Clamp text={text} limit={fb ? 480 : 210} more={fb ? 'Wyświetl więcej' : 'zobacz więcej'} /></p>}
       {media.length > 0 && <Slides media={media} />}
-      <div className="pv__acts pv__acts--li"><span><ThumbsUp size={17} />Polecam</span><span><MessageCircle size={17} />Komentarz</span><span><Repeat2 size={17} />Udostępnij</span><span><Send size={17} />Wyślij</span></div>
+      {fb
+        ? <div className="pv__acts pv__acts--li"><span><ThumbsUp size={17} />Lubię to!</span><span><MessageCircle size={17} />Komentarz</span><span><Repeat2 size={17} />Udostępnij</span></div>
+        : <div className="pv__acts pv__acts--li"><span><ThumbsUp size={17} />Polecam</span><span><MessageCircle size={17} />Komentarz</span><span><Repeat2 size={17} />Udostępnij</span><span><Send size={17} />Wyślij</span></div>}
     </div>
   )
 }
@@ -545,9 +560,11 @@ function Accounts({ listing, reload }: { listing: Listing; reload(): Promise<voi
       {!listing.configured && <p className="integ__error"><TriangleAlert size={15} />Publikacje nie są jeszcze skonfigurowane po stronie serwera.</p>}
       <div className="soc-connect">
         <ConnectCard provider="instagram" title="Instagram" text="Posty, karuzele, wideo i relacje." busy={busy === 'instagram'} disabled={!listing.configured} onClick={() => connect('instagram')} />
+        <ConnectCard provider="facebook" title="Facebook" text={listing.facebook ? 'Strony, którymi zarządzasz.' : 'Czeka na konfigurację aplikacji Meta przez moderatora.'} busy={busy === 'facebook'} disabled={!listing.facebook} onClick={() => connect('facebook')} />
         <ConnectCard provider="linkedin" title="LinkedIn" text="Profil osobisty i strony firmowe, którymi zarządzasz." busy={busy === 'linkedin'} disabled={!listing.configured} onClick={() => connect('linkedin')} />
       </div>
-      <p className="soc-preview__hint">Logujesz się na bezpiecznej stronie Unipile — AURORA nie widzi hasła. Jeśli konto podłączył już ktoś inny, nie powstanie druga kopia: zobaczysz je tutaj razem z tą osobą.</p>
+      <p className="soc-preview__hint">Logujesz się na stronie Unipile (Instagram, LinkedIn) albo Facebooka — AURORA nie widzi hasła. Jeśli konto podłączył już ktoś inny, nie powstanie druga kopia: zobaczysz je tutaj razem z tą osobą.</p>
+      {profile?.is_moderator && <MetaSetup onSaved={reload} />}
 
       {listing.accounts.map((a) => {
         const others = a.people.filter((p) => p.role === 'owner' && p.user_id !== profile?.id)
@@ -556,17 +573,17 @@ function Accounts({ listing, reload }: { listing: Listing; reload(): Promise<voi
         return (
           <section key={a.id} className="integ" data-id={a.id}>
             <header className="integ__head">
-              <span className={cx('integ__ico', a.provider === 'linkedin' && 'integ__ico--dark')}><NetIcon provider={a.provider} size={22} /></span>
+              <span className={cx('integ__ico', a.provider !== 'instagram' && 'integ__ico--dark')}><NetIcon provider={a.provider} size={22} /></span>
               <div className="grow">
                 <h2>{a.name}</h2>
                 <p>
-                  {a.provider === 'instagram' ? 'Instagram' : `LinkedIn${a.handle ? ` · ${a.handle}` : ''}`}
+                  {a.provider === 'facebook' ? 'Facebook · strona' : `${NETWORK[a.provider]}${a.handle ? ` · ${a.handle}` : ''}`}
                   {a.organizations.length > 0 && ` · strony: ${a.organizations.map((o) => o.name).join(', ')}`}
                 </p>
               </div>
               {a.status === 'ok'
                 ? <Badge tone="ok" icon={<CircleCheck size={14} />}>Podłączono</Badge>
-                : <Badge tone="accent" icon={<TriangleAlert size={14} />}>{a.status === 'gone' ? 'Usunięte w Unipile' : 'Wymaga logowania'}</Badge>}
+                : <Badge tone="accent" icon={<TriangleAlert size={14} />}>{a.status === 'gone' ? 'Konto usunięte u dostawcy' : 'Wymaga logowania'}</Badge>}
             </header>
 
             {others.length > 0 && <p className="soc-also">To konto mają też podłączone: <b>{others.map((p) => p.name).join(', ')}</b></p>}
@@ -606,9 +623,58 @@ function Accounts({ listing, reload }: { listing: Listing; reload(): Promise<voi
 function ConnectCard({ provider, title, text, busy, disabled, onClick }: { provider: Provider; title: string; text: ReactNode; busy: boolean; disabled: boolean; onClick(): void }) {
   return (
     <div className="soc-connect__card">
-      <span className={cx('integ__ico', provider === 'linkedin' && 'integ__ico--dark')}><NetIcon provider={provider} size={22} /></span>
+      <span className={cx('integ__ico', provider !== 'instagram' && 'integ__ico--dark')}><NetIcon provider={provider} size={22} /></span>
       <div className="grow"><b>{title}</b><small>{text}</small></div>
       <Button variant="primary" busy={busy} disabled={disabled} icon={<Plus size={16} />} onClick={onClick}>Podłącz</Button>
     </div>
+  )
+}
+
+/** Moderator: dane aplikacji Meta, przez którą publikujemy na stronach Facebooka. */
+function MetaSetup({ onSaved }: { onSaved(): void }) {
+  const { fail, toast } = useFeedback()
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [form, setForm] = useState({ id: '', secret: '', config: '' })
+  const cfg = useQuery(() => api<{ meta_app_id: string; meta_secret_set: boolean; meta_config_id: string; meta_redirect_uri: string }>('platform_get').catch(() => null), [])
+  useEffect(() => {
+    if (cfg.data) setForm((f) => ({ ...f, id: cfg.data!.meta_app_id, config: cfg.data!.meta_config_id }))
+  }, [cfg.data])
+  if (!cfg.data) return null
+  const ready = !!cfg.data.meta_app_id && cfg.data.meta_secret_set
+  const save = async () => {
+    setBusy(true)
+    try {
+      await api('platform_set', { meta_app_id: form.id, meta_config_id: form.config, meta_app_secret: form.secret })
+      toast('Zapisano')
+      setForm((f) => ({ ...f, secret: '' }))
+      await cfg.reload()
+      onSaved()
+    } catch (e) {
+      fail(e)
+    }
+    setBusy(false)
+  }
+  return (
+    <section className="soc-setup">
+      <button type="button" className="soc-setup__head" onClick={() => setOpen((v) => !v)}>
+        <b>Aplikacja Meta dla Facebooka</b>
+        <Badge tone={ready ? 'ok' : 'neutral'}>{ready ? 'Skonfigurowana' : 'Do uzupełnienia'}</Badge>
+      </button>
+      {open && (
+        <div className="form">
+          <p className="soc-preview__hint">W aplikacji Meta dodaj adres powrotu do „Valid OAuth Redirect URIs” i utwórz osobną konfigurację logowania dla AURORA z uprawnieniami <b>pages_show_list</b>, <b>pages_manage_posts</b>, <b>pages_read_engagement</b>. AURORA nie podpina webhooków i nie czyta wiadomości.</p>
+          <Field label="Adres powrotu (Redirect URI)"><input className="input" readOnly value={cfg.data.meta_redirect_uri} onFocus={(e) => e.target.select()} /></Field>
+          <div className="form__row">
+            <Field label="App ID"><input className="input" value={form.id} onChange={(e) => setForm({ ...form, id: e.target.value })} /></Field>
+            <Field label="ID konfiguracji logowania" hint="Puste = zwykłe logowanie z listą uprawnień."><input className="input" value={form.config} onChange={(e) => setForm({ ...form, config: e.target.value })} /></Field>
+          </div>
+          <Field label="App Secret" hint={cfg.data.meta_secret_set ? 'Zapisany. Wpisz nowy tylko, gdy chcesz go zmienić.' : 'Przechowywany zaszyfrowany.'}>
+            <input className="input" type="password" autoComplete="off" value={form.secret} onChange={(e) => setForm({ ...form, secret: e.target.value })} />
+          </Field>
+          <div><Button variant="primary" busy={busy} disabled={!form.id.trim() || (!cfg.data.meta_secret_set && !form.secret.trim())} onClick={save}>Zapisz</Button></div>
+        </div>
+      )}
+    </section>
   )
 }

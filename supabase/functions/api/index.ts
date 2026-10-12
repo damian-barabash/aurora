@@ -7,7 +7,7 @@ import {
 import { generateDigest } from '../_shared/digest.ts'
 import { GOOGLE_SCOPES, googleClient, REDIRECT_URI, stripHtml, syncIntegration } from '../_shared/google.ts'
 import { applyProposal, embedEntries, ingestText } from '../_shared/ingest.ts'
-import { socialActions } from '../_shared/social.ts'
+import { META_REDIRECT, socialActions } from '../_shared/social.ts'
 import { crawlStep, safeUrl, startCrawl } from '../_shared/web.ts'
 
 // deno-lint-ignore no-explicit-any
@@ -159,8 +159,14 @@ const actions: Record<string, (me: Me, b: Body) => Promise<unknown>> = {
   // ───────── ustawienia platformy (moderator) ─────────
   async platform_get(me) {
     requireModerator(me)
-    const [id, secret] = await Promise.all([getSetting('google_client_id'), getSetting('google_client_secret')])
-    return { google_client_id: id ?? '', google_secret_set: !!secret, redirect_uri: REDIRECT_URI, app_url: APP_URL }
+    const [id, secret, metaId, metaSecret, metaConfig] = await Promise.all([
+      getSetting('google_client_id'), getSetting('google_client_secret'),
+      getSetting('meta_app_id'), getSetting('meta_app_secret'), getSetting('meta_config_id'),
+    ])
+    return {
+      google_client_id: id ?? '', google_secret_set: !!secret, redirect_uri: REDIRECT_URI, app_url: APP_URL,
+      meta_app_id: metaId ?? '', meta_secret_set: !!metaSecret, meta_config_id: metaConfig ?? '', meta_redirect_uri: META_REDIRECT,
+    }
   },
 
   async platform_set(me, b) {
@@ -168,6 +174,11 @@ const actions: Record<string, (me: Me, b: Body) => Promise<unknown>> = {
     if (typeof b.google_client_id === 'string') await setSetting('google_client_id', b.google_client_id.trim())
     if (typeof b.google_client_secret === 'string' && b.google_client_secret.trim()) {
       await setSetting('google_client_secret', await encrypt(b.google_client_secret.trim()))
+    }
+    if (typeof b.meta_app_id === 'string') await setSetting('meta_app_id', b.meta_app_id.trim())
+    if (typeof b.meta_config_id === 'string') await setSetting('meta_config_id', b.meta_config_id.trim())
+    if (typeof b.meta_app_secret === 'string' && b.meta_app_secret.trim()) {
+      await setSetting('meta_app_secret', await encrypt(b.meta_app_secret.trim()))
     }
     return { ok: true }
   },

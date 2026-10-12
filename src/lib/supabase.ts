@@ -23,6 +23,7 @@ const ERRORS: Record<string, string> = {
   no_text_in_file: 'W pliku nie znaleziono tekstu',
   bad_url: 'Sprawdź adres strony',
   name_required: 'Podaj nazwę',
+  facebook_not_configured: 'Facebook czeka na konfigurację aplikacji Meta przez moderatora',
   social_not_configured: 'Publikacje nie są jeszcze skonfigurowane',
   no_targets: 'Wybierz co najmniej jedno konto',
   empty_post: 'Dodaj tekst albo zdjęcie',

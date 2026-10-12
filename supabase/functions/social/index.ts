@@ -1,9 +1,10 @@
 // Dwa wejścia bez sesji użytkownika:
 //   /social/notify — Unipile zgłasza, że ktoś zalogował się na konto (name = nasz jednorazowy stan)
+//   /social/meta   — powrót z logowania Facebooka (strony przez własną aplikację Meta)
 //   /social/cron   — pg_cron co minutę: zaplanowane posty, przerwane publikacje, stan kont
 
 import { db, json } from '../_shared/core.ts'
-import { adoptAccount, failStuck, runDue, syncAccounts } from '../_shared/social.ts'
+import { adoptAccount, failStuck, metaCallback, runDue, syncAccounts } from '../_shared/social.ts'
 
 Deno.serve(async (req) => {
   const route = new URL(req.url).pathname.split('/').pop()
@@ -22,6 +23,8 @@ Deno.serve(async (req) => {
       return json({ error: String(e) }, 500)
     }
   }
+
+  if (route === 'meta' && req.method === 'GET') return metaCallback(req)
 
   if (route === 'cron') {
     if (req.headers.get('x-cron-secret') !== Deno.env.get('CRON_SECRET')) return json({ error: 'forbidden' }, 403)

@@ -1,7 +1,7 @@
 // Publikacje w LinkedIn i Instagramie przez Unipile: podłączanie kont bez duplikatów, dostęp, kolejka postów.
 
 import { chat } from './ai.ts'
-import { APP_URL, db, FUNCTIONS_URL, HttpError, type Me, randomToken, requireMember } from './core.ts'
+import { APP_URL, db, decrypt, encrypt, FUNCTIONS_URL, getSetting, HttpError, type Me, randomToken, requireMember } from './core.ts'
 
 // deno-lint-ignore no-explicit-any
 type Any = any
@@ -13,7 +13,7 @@ const KEY = Deno.env.get('UNIPILE_KEY') ?? ''
 const BASE = `https://${DSN}/api/v1`
 export const socialReady = () => !!(DSN && KEY)
 
-type Provider = 'linkedin' | 'instagram'
+type Provider = 'linkedin' | 'instagram' | 'facebook'
 interface Media { path: string; mime: string; name: string; size: number }
 
 async function uni(path: string, init: RequestInit = {}, timeout = 25_000): Promise<Any> {
@@ -47,7 +47,7 @@ async function listUnipile(): Promise<Any[]> {
   return out
 }
 
-const providerOf = (a: Any): Provider | null => (a?.type === 'LINKEDIN' ? 'linkedin' : a?.type === 'INSTAGRAM' ? 'instagram' : null)
+const providerOf = (a: Any): Exclude<Provider, 'facebook'> | null => (a?.type === 'LINKEDIN' ? 'linkedin' : a?.type === 'INSTAGRAM' ? 'instagram' : null)
 const networkId = (a: Any): string | null => a?.connection_params?.im?.id ? String(a.connection_params.im.id) : null
 
 function statusOf(a: Any): 'ok' | 'credentials' | 'error' {
@@ -100,7 +100,7 @@ export async function adoptAccount(unipileId: string, userId: string, companyId:
 
 /** Stan kont z Unipile: wygasłe logowanie zgłaszamy właścicielom, konta usunięte po stronie Unipile oznaczamy. */
 export async function syncAccounts() {
-  const { data: rows } = await db.from('social_accounts').select('id, unipile_id, status, name')
+  const { data: rows } = await db.from('social_accounts').select('id, unipile_id, status, name').neq('provider', 'facebook')
   if (!rows?.length || !socialReady()) return 0
   const live = new Map((await listUnipile()).map((a) => [a.id as string, a]))
   for (const row of rows) {
@@ -122,6 +122,120 @@ export async function syncAccounts() {
   return rows.length
 }
 
+// ───────── Facebook: własna aplikacja Meta ─────────
+
+const GRAPH = 'https://graph.facebook.com/v23.0'
+export const META_REDIRECT = FUNCTIONS_URL + '/social/meta'
+// osobna konfiguracja logowania AURORA: tylko publikowanie, bez wiadomości i webhooków
+const META_SCOPES = 'pages_show_list,pages_manage_posts,pages_read_engagement'
+
+export async function metaClient(): Promise<{ id: string; secret: string; config: string | null } | null> {
+  const [id, secret, config] = await Promise.all([getSetting('meta_app_id'), getSetting('meta_app_secret'), getSetting('meta_config_id')])
+  if (!id || !secret) return null
+  return { id, secret: await decrypt(secret), config: config || null }
+}
+
+async function graph(path: string, params: Record<string, string>, method: 'GET' | 'POST' = 'GET'): Promise<Any> {
+  const body = new URLSearchParams(params)
+  const r = await fetch(method === 'GET' ? GRAPH + path + '?' + body : GRAPH + path, {
+    method, ...(method === 'POST' ? { body } : {}), signal: AbortSignal.timeout(120_000),
+  })
+  const d = await r.json().catch(() => ({}))
+  if (!r.ok || d.error) throw Object.assign(new Error(String(d.error?.error_user_msg || d.error?.message || 'Meta ' + r.status).slice(0, 300)), { code: d.error?.code })
+  return d
+}
+
+async function metaLoginUrl(me: Me, b: Record<string, Any>): Promise<string> {
+  const client = await metaClient()
+  if (!client) throw new HttpError(409, 'facebook_not_configured')
+  const origin = /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(String(b.origin ?? '')) ? String(b.origin) : APP_URL
+  const state = 'fb_' + randomToken(20)
+  await db.from('oauth_states').delete().lt('created_at', new Date(Date.now() - 3600_000).toISOString())
+  await db.from('oauth_states').insert({ state, user_id: me.id, company_id: b.company_id, return_to: origin + '/app/social?tab=accounts' })
+  const url = new URL('https://www.facebook.com/v23.0/dialog/oauth')
+  url.search = new URLSearchParams({
+    client_id: client.id, redirect_uri: META_REDIRECT, state, response_type: 'code',
+    ...(client.config ? { config_id: client.config, override_default_response_type: 'true' } : { scope: META_SCOPES }),
+  }).toString()
+  return url.toString()
+}
+
+/** Powrót z Facebooka: każda strona, którą użytkownik wybrał w oknie Meta i na której może publikować, trafia na listę kont. */
+export async function metaCallback(req: Request): Promise<Response> {
+  const url = new URL(req.url)
+  const state = url.searchParams.get('state') ?? ''
+  const { data: st } = state.startsWith('fb_') ? await db.from('oauth_states').select('*').eq('state', state).maybeSingle() : { data: null }
+  const back = (to: string, result: string) => Response.redirect(to + '&social=' + result, 302)
+  if (!st) return back(APP_URL + '/app/social?tab=accounts', 'error')
+  await db.from('oauth_states').delete().eq('state', state)
+  try {
+    const client = await metaClient()
+    const code = url.searchParams.get('code')
+    if (!client || !code) throw new Error(url.searchParams.get('error_description') ?? 'no_code')
+    const short = await graph('/oauth/access_token', { client_id: client.id, client_secret: client.secret, redirect_uri: META_REDIRECT, code })
+    // token użytkownika wymieniamy na długi: tokeny stron z niego nie wygasają
+    const long = await graph('/oauth/access_token', { grant_type: 'fb_exchange_token', client_id: client.id, client_secret: client.secret, fb_exchange_token: short.access_token })
+    const pages: Any[] = []
+    let next: string | null = GRAPH + '/me/accounts?' + new URLSearchParams({ fields: 'id,name,access_token,tasks', limit: '100', access_token: long.access_token })
+    while (next && pages.length < 300) {
+      const d: Any = await (await fetch(next)).json()
+      if (d.error) throw new Error(d.error.message)
+      pages.push(...(d.data ?? []))
+      next = d.paging?.next ?? null
+    }
+    const usable = pages.filter((p) => p.access_token && (!p.tasks || p.tasks.includes('CREATE_CONTENT') || p.tasks.includes('MANAGE')))
+    if (!usable.length) return back(st.return_to, 'nopages')
+    for (const p of usable) {
+      // ta sama strona u drugiej osoby = ten sam wiersz: druga osoba zostaje współwłaścicielem
+      const { data: account, error } = await db.from('social_accounts').upsert({
+        provider: 'facebook', provider_user_id: String(p.id), unipile_id: 'fb:' + p.id, name: String(p.name ?? ''),
+        status: 'ok', secret: await encrypt(p.access_token), updated_at: new Date().toISOString(),
+      }, { onConflict: 'provider,provider_user_id' }).select('id').single()
+      if (error) throw new Error(error.message)
+      await db.from('social_access').upsert({ account_id: account.id, user_id: st.user_id, company_id: st.company_id, role: 'owner', needs_approval: false, granted_by: null })
+    }
+    return back(st.return_to, 'connected')
+  } catch (e) {
+    console.error('meta callback', e)
+    return back(st.return_to, 'error')
+  }
+}
+
+async function publishFacebook(acc: Any, post: Any): Promise<string | null> {
+  const token = await decrypt(acc.secret)
+  const page = acc.provider_user_id
+  const media = (post.media ?? []) as Media[]
+  const text = String(post.text ?? '')
+  // Meta pobiera pliki sama — dostaje adresy podpisane na godzinę
+  const link = async (m: Media) => {
+    const { data } = await db.storage.from('social').createSignedUrl(m.path, 3600)
+    if (!data?.signedUrl) throw new Error('Nie udało się przygotować pliku ' + m.name)
+    return data.signedUrl
+  }
+  try {
+    const video = media.find((m) => m.mime.startsWith('video/'))
+    if (video) return (await graph('/' + page + '/videos', { file_url: await link(video), description: text, access_token: token }, 'POST')).id ?? null
+    if (!media.length) {
+      const url = text.match(/https?:\/\/[^\s)]+/)?.[0]
+      return (await graph('/' + page + '/feed', { message: text, ...(url ? { link: url } : {}), access_token: token }, 'POST')).id ?? null
+    }
+    if (media.length === 1) {
+      const res = await graph('/' + page + '/photos', { url: await link(media[0]), caption: text, access_token: token }, 'POST')
+      return res.post_id ?? res.id ?? null
+    }
+    const attached: Record<string, string> = {}
+    for (const [i, m] of media.entries()) {
+      const photo = await graph('/' + page + '/photos', { url: await link(m), published: 'false', access_token: token }, 'POST')
+      attached['attached_media[' + i + ']'] = JSON.stringify({ media_fbid: photo.id })
+    }
+    return (await graph('/' + page + '/feed', { message: text, ...attached, access_token: token }, 'POST')).id ?? null
+  } catch (e) {
+    // 190 = token unieważniony (zmiana hasła, cofnięty dostęp): konto trzeba podłączyć ponownie
+    if ((e as Any)?.code === 190) await db.from('social_accounts').update({ status: 'credentials' }).eq('id', acc.id)
+    throw e
+  }
+}
+
 // ───────── publikacja ─────────
 
 async function publishTarget(t: Any, post: Any, files: Map<string, Blob>) {
@@ -131,6 +245,13 @@ async function publishTarget(t: Any, post: Any, files: Map<string, Blob>) {
       : { data: null }
     if (!acc) throw new Error('Konto zostało odłączone')
     if (acc.status !== 'ok') throw new Error('Konto wymaga ponownego podłączenia')
+    if (acc.provider === 'facebook') {
+      const id = await publishFacebook(acc, post)
+      await db.from('social_targets').update({
+        status: 'published', provider_post_id: id, published_at: new Date().toISOString(), error: null, locked_at: null,
+      }).eq('id', t.id)
+      return
+    }
 
     const form = new FormData()
     form.append('account_id', acc.unipile_id)
@@ -230,6 +351,7 @@ export const socialActions: Record<string, (me: Me, b: Body) => Promise<unknown>
     const who = await names((access ?? []).map((a) => a.user_id))
     return {
       configured: socialReady(),
+      facebook: !!(await metaClient()),
       moderators: (moderators ?? []).map((m) => ({ id: m.id, name: m.full_name || m.email })),
       accounts: (accounts ?? []).map((a) => {
         const own = mine.find((m) => m.account_id === a.id)!
@@ -247,6 +369,7 @@ export const socialActions: Record<string, (me: Me, b: Body) => Promise<unknown>
   /** Link do strony logowania Unipile; hasło nigdy nie przechodzi przez AURORA. */
   async social_connect(me, b) {
     await requireMember(me, b.company_id)
+    if (b.provider === 'facebook') return { url: await metaLoginUrl(me, b) }
     const provider = b.provider === 'instagram' ? 'INSTAGRAM' : 'LINKEDIN'
     let reconnect: string | null = null
     if (b.account_id) {
