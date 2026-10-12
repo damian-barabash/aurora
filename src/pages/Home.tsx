@@ -1,4 +1,4 @@
-import { ArrowRight, ArrowUp, ArrowUpRight, CalendarDays, Megaphone, RefreshCw } from 'lucide-react'
+import { ArrowRight, ArrowUp, ArrowUpRight, Megaphone, RefreshCw } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Page, useChanged, usePanel } from '../app/Shell'
@@ -23,17 +23,13 @@ export default function HomePage() {
   const [digesting, setDigesting] = useState(false)
 
   const { data, loading, reload } = useQuery(async () => {
-    const today = new Date().toISOString().slice(0, 10)
-    const [digest, products, entries, mail, news, dates, history] = await Promise.all([
+    const [digest, products, entries, mail, news, history] = await Promise.all([
       supabase.from('digests').select('day, content, stats').eq('company_id', company.id).order('day', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('products').select('id, name').eq('company_id', company.id).neq('status', 'archived'),
       supabase.from('entries').select('id', { count: 'exact', head: true }).eq('company_id', company.id).neq('status', 'archived'),
       supabase.from('integrations').select('id', { count: 'exact', head: true }).eq('company_id', company.id).eq('status', 'active'),
       supabase.from('entries').select('*').eq('company_id', company.id).in('type', ['announcement', 'news']).eq('status', 'current')
         .order('pinned', { ascending: false }).order('importance', { ascending: false }).order('created_at', { ascending: false }).limit(3),
-      supabase.from('entries').select('*').eq('company_id', company.id).in('status', ['current', 'review']).gte('effective_from', today)
-        // termin to wydarzenie (typ „date”) albo zmiana, która dopiero nadejdzie; „obowiązuje od dziś” terminem nie jest
-        .or(`type.eq.date,effective_from.gt.${today}`).order('effective_from').limit(12),
       supabase.from('history').select('*').eq('company_id', company.id).order('created_at', { ascending: false }).limit(8),
     ])
     return {
@@ -42,7 +38,6 @@ export default function HomePage() {
       entries: entries.count ?? 0,
       mail: mail.count ?? 0,
       news: (news.data ?? []) as Entry[],
-      dates: (dates.data ?? []) as Entry[],
       history: (history.data ?? []) as HistoryRow[],
     }
   }, [company.id])
@@ -54,11 +49,6 @@ export default function HomePage() {
   const hello = hour < 5 ? 'Dobrej nocy' : hour < 12 ? 'Dzień dobry' : hour < 18 ? 'Dzień dobry' : 'Dobry wieczór'
   const first = (profile?.full_name || '').split(' ')[0]
   const productName = Object.fromEntries(d.products.map((p) => [p.id, p.name]))
-  // jeden dzień = jedna plakietka z datą, pod nią wszystkie wpisy z tego dnia
-  const days = Object.entries(d.dates.reduce<Record<string, Entry[]>>((acc, e) => {
-    (acc[e.effective_from!] ??= []).push(e)
-    return acc
-  }, {})).slice(0, 6)
   const ask = () => q.trim() && nav(`/app/chat?q=${encodeURIComponent(q.trim())}`)
   const makeDigest = async () => {
     setDigesting(true)
@@ -79,6 +69,21 @@ export default function HomePage() {
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Zapytaj AURORA o dowolny produkt, cenę lub termin…" />
         <button type="submit" className="composer__send" disabled={!q.trim()} aria-label="Zapytaj"><ArrowUp size={20} /></button>
       </form>
+
+      {d.news.length > 0 && (
+        <>
+          <h2 className="section-title">Ważne<Link to="/app/news">Wszystkie komunikaty<ArrowRight size={15} /></Link></h2>
+          <div className="newsrow">
+            {d.news.map((n) => (
+              <Link key={n.id} to="/app/news" className={`newscard${n.importance >= 3 ? ' newscard--hot' : ''}`}>
+                <span className="newscard__top"><Megaphone size={16} />{fmtDate(n.effective_from ?? n.created_at, false)}</span>
+                <b>{n.title}</b>
+                <p>{n.body}</p>
+              </Link>
+            ))}
+          </div>
+        </>
+      )}
 
       <div className="home__grid">
         <section className="digest">
@@ -103,53 +108,10 @@ export default function HomePage() {
         </div>
       </div>
 
-      {d.news.length > 0 && (
-        <>
-          <h2 className="section-title">Ważne<Link to="/app/news">Wszystkie komunikaty<ArrowRight size={15} /></Link></h2>
-          <div className="newsrow">
-            {d.news.map((n) => (
-              <Link key={n.id} to="/app/news" className={`newscard${n.importance >= 3 ? ' newscard--hot' : ''}`}>
-                <span className="newscard__top"><Megaphone size={16} />{fmtDate(n.effective_from ?? n.created_at, false)}</span>
-                <b>{n.title}</b>
-                <p>{n.body}</p>
-              </Link>
-            ))}
-          </div>
-        </>
-      )}
-
-      <div className="home__cols">
-        <section>
-          <h2 className="section-title">Ostatnie zmiany</h2>
-          {d.history.length
-            ? <HistoryList compact rows={d.history} people={names} products={productName} />
-            : <p className="muted">Brak zmian.</p>}
-        </section>
-        <section>
-          <h2 className="section-title">Najbliższe terminy</h2>
-          {d.dates.length ? (
-            <div className="dates">
-              {days.map(([day, list]) => {
-                const date = new Date(`${day}T12:00:00`)
-                return (
-                  <div key={day} className="dates__group">
-                    <span className="dates__day"><b>{date.getDate()}</b>{date.toLocaleDateString('pl-PL', { month: 'short' }).replace('.', '')}</span>
-                    <div className="dates__items">
-                      {list.map((e) => (
-                        <Link key={e.id} to={e.product_id ? `/app/kb/${e.product_id}?e=${e.id}` : '/app/news'} className="dates__row">
-                          <b className="truncate">{e.title}</b><small className="truncate">{e.product_id ? productName[e.product_id] : company.name}</small>
-                        </Link>
-                      ))}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          ) : (
-            <div className="dates__empty"><CalendarDays size={20} /><span>Podłącz kalendarz — daty premier i wydarzeń pojawią się tu same.</span></div>
-          )}
-        </section>
-      </div>
+      <h2 className="section-title">Ostatnie zmiany</h2>
+      {d.history.length
+        ? <HistoryList compact rows={d.history} people={names} products={productName} />
+        : <p className="muted">Brak zmian.</p>}
     </Page>
   )
 }
