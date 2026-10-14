@@ -1,5 +1,5 @@
-import { Archive, ArrowUpRight, ChevronDown, Clock, ClipboardPaste, FileText, FolderPlus, Globe, LayoutGrid, List, MoreHorizontal, PenLine, Plus, Search, SlidersHorizontal, Trash2 } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
+import { Archive, ArrowUpRight, ChevronDown, Network, Clock, ClipboardPaste, FileText, FolderPlus, Globe, LayoutGrid, List, MoreHorizontal, PenLine, Plus, Search, SlidersHorizontal, Trash2 } from 'lucide-react'
+import { lazy, Suspense, useCallback, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { BrandMark, useBrands } from '../app/brands'
 import { emitChanged, Page, useChanged } from '../app/Shell'
@@ -11,10 +11,14 @@ import { Button, cx, Empty, IconBtn, Loading, Menu, MenuItem, Segmented, Tabs, u
 import { fmtDate, fmtWhen, plural } from '../lib/format'
 import { leave } from '../lib/motion'
 import { supabase } from '../lib/supabase'
+import { background } from '../lib/sync'
 import { useSigned } from '../lib/useSigned'
 import type { Brand, Collection, Entry, EntryType, Product } from '../lib/types'
 
+const KnowledgeMap = lazy(() => import('../components/KnowledgeMap'))
+
 type Tab = 'all' | 'current' | 'review'
+type View = 'grid' | 'list' | 'map'
 type Sort = 'new' | 'name' | 'size'
 const ORDER: EntryType[] = ['announcement', 'news', 'price', 'date', 'fact', 'faq', 'link', 'document']
 
@@ -33,7 +37,7 @@ export default function KbPage() {
   const [tab, setTab] = useState<Tab>('all')
   const [q, setQ] = useState('')
   const [sort, setSort] = useState<Sort>('new')
-  const [view, setView] = useState<'grid' | 'list'>(() => (localStorage.getItem('aurora_kb_view') as 'grid' | 'list') || 'grid')
+  const [view, setView] = useState<View>(() => { try { return (localStorage.getItem('aurora_kb_view') as View) || 'grid' } catch { return 'grid' } })
   const [editor, setEditor] = useState(false)
   const [importing, setImporting] = useState(false)
   const [collectionEditor, setCollectionEditor] = useState<{ collection?: Collection } | null>(null)
@@ -42,15 +46,18 @@ export default function KbPage() {
   const { data, loading, reload } = useQuery(async () => {
     let general = supabase.from('entries').select('*').eq('company_id', company.id).is('product_id', null).neq('status', 'archived')
     general = brandScope ? general.eq('brand_id', brandScope) : general.is('brand_id', null)
-    const [{ data: products }, { data: collections }, { count }, { data: entries }] = await Promise.all([
+    const [{ data: products }, { data: collections }, { count }, { data: entries }, { data: brandLevel }] = await Promise.all([
       supabase.from('products_v').select('*').eq('company_id', company.id).neq('status', 'archived'),
       supabase.from('collections').select('*').eq('company_id', company.id).order('position'),
       supabase.from('entries').select('id', { count: 'exact', head: true }).eq('company_id', company.id).neq('status', 'archived'),
       brandScope !== undefined ? general.order('importance', { ascending: false }).order('updated_at', { ascending: false }) : Promise.resolve({ data: [] }),
+      supabase.from('entries').select('brand_id').eq('company_id', company.id).is('product_id', null).neq('status', 'archived'),
     ])
+    const brandFacts: Record<string, number> = {}
+    for (const e of brandLevel ?? []) brandFacts[e.brand_id ?? 'group'] = (brandFacts[e.brand_id ?? 'group'] ?? 0) + 1
     return {
       products: (products ?? []) as Product[], collections: (collections ?? []) as Collection[],
-      total: count ?? 0, general: (entries ?? []) as Entry[],
+      total: count ?? 0, general: (entries ?? []) as Entry[], brandFacts,
     }
   }, [company.id, brandScope])
   useChanged(useCallback(() => { reload() }, [reload]))
@@ -70,14 +77,16 @@ export default function KbPage() {
   const sections = useMemo(() => {
     if (brandScope !== undefined || collectionId) return [{ key: 'all', brand: undefined as Brand | null | undefined, items: shown }]
     const out: { key: string; brand: Brand | null | undefined; items: Product[] }[] = []
+    // bez wyszukiwania i filtrów pokazujemy każdą markę — także tę, która nie ma jeszcze produktów
+    const everyBrand = !q.trim() && tab === 'all'
     for (const c of clusters) for (const b of c.brands) {
       const items = shown.filter((p) => p.brand_id === b.id)
-      if (items.length) out.push({ key: b.id, brand: b, items })
+      if (items.length || everyBrand) out.push({ key: b.id, brand: b, items })
     }
     const loose = shown.filter((p) => !p.brand_id || !brands.some((b) => b.id === p.brand_id))
     if (loose.length) out.push({ key: 'group', brand: null, items: loose })
     return out
-  }, [shown, clusters, brands, brandScope, collectionId])
+  }, [shown, clusters, brands, brandScope, collectionId, q, tab])
 
   const logos = useSigned((data?.products ?? []).map((p) => p.logo_path))
   const collection = data?.collections.find((c) => c.id === collectionId)
@@ -180,8 +189,10 @@ export default function KbPage() {
         <Menu trigger={(_, toggle) => <Button variant="quiet" icon={<SlidersHorizontal size={17} />} trailing={<ChevronDown size={15} />} onClick={toggle}>{sortLabel[sort]}</Button>}>
           {(close) => (['new', 'name', 'size'] as Sort[]).map((s) => <MenuItem key={s} active={s === sort} onClick={() => { close(); setSort(s) }}>{sortLabel[s]}</MenuItem>)}
         </Menu>
-        <Segmented value={view} onChange={(v) => { setView(v); localStorage.setItem('aurora_kb_view', v) }} options={[
-          { value: 'grid', label: <LayoutGrid size={17} /> }, { value: 'list', label: <List size={17} /> },
+        <Segmented value={view} onChange={(v) => { setView(v); try { localStorage.setItem('aurora_kb_view', v) } catch { /* tryb prywatny */ } }} options={[
+          { value: 'grid', label: <span title="Kafelki"><LayoutGrid size={17} /></span> },
+          { value: 'list', label: <span title="Lista"><List size={17} /></span> },
+          { value: 'map', label: <span title="Mapa marek i powiązań"><Network size={17} /></span> },
         ]} />
       </div>
 
@@ -194,7 +205,11 @@ export default function KbPage() {
         <span className="kb__total">{materials(data?.total ?? 0)} w bazie</span>
       </div>
 
-      {shown.length === 0 ? (
+      {view === 'map' ? (
+        <Suspense fallback={<Loading />}>
+          <KnowledgeMap products={data?.products ?? []} focus={brandScope ?? null} />
+        </Suspense>
+      ) : sections.every((x) => x.items.length === 0 && x.brand === undefined) || (shown.length === 0 && brandScope !== undefined) ? (
         <Empty
           icon={<LayoutGrid size={24} />}
           title={q || tab !== 'all' ? 'Nic nie znaleziono' : brandScope !== undefined ? 'Ta marka nie ma jeszcze produktów' : 'Tutaj pojawią się Twoje produkty'}
@@ -212,11 +227,17 @@ export default function KbPage() {
               <ArrowUpRight size={17} />
             </Link>
           )}
-          {view === 'grid' ? <div className="pgrid">{s.items.map(card)}</div> : <div className="plist">{s.items.map(row)}</div>}
+          {s.items.length === 0 ? (
+            <Link to={`/app/kb?b=${s.brand?.id ?? 'group'}`} className="kb__nobrand">
+              <span>Brak produktów</span>
+              <b>{data?.brandFacts[s.brand?.id ?? 'group'] ?? 0} {plural(data?.brandFacts[s.brand?.id ?? 'group'] ?? 0, ['wpis', 'wpisy', 'wpisów'])} o marce</b>
+              <ArrowUpRight size={16} />
+            </Link>
+          ) : view === 'grid' ? <div className="pgrid">{s.items.map(card)}</div> : <div className="plist">{s.items.map(row)}</div>}
         </section>
       ))}
 
-      {brandScope !== undefined && <GeneralKnowledge entries={data?.general ?? []} brandId={brandScope} scopeName={scopeName ?? ''} />}
+      {brandScope !== undefined && view !== 'map' && <GeneralKnowledge entries={data?.general ?? []} brandId={brandScope} scopeName={scopeName ?? ''} />}
 
       {lastChange && (
         <div className="kb__foot">
@@ -261,14 +282,15 @@ function BrandCard({ brand, group, canManage, onEdit }: { brand: Brand | null; g
 /** Wiedza o samej marce (albo całej grupie) — wpisy bez produktu. */
 function GeneralKnowledge({ entries, brandId, scopeName }: { entries: Entry[]; brandId: string | null; scopeName: string }) {
   const types = useTypeLabels()
-  const { fail } = useFeedback()
   const [editor, setEditor] = useState<{ entry?: Entry } | null>(null)
   const groups = useMemo(() => ORDER.map((type) => [type, entries.filter((e) => e.type === type)] as const).filter(([, list]) => list.length), [entries])
   const archive = async (e: Entry) => {
-    const { error } = await supabase.from('entries').update({ status: 'archived' }).eq('id', e.id)
-    if (error) return fail(error.message)
     await leave(e.id)
-    emitChanged()
+    background('Przenoszenie wpisu do archiwum', async () => {
+      const res = await supabase.from('entries').update({ status: 'archived' }).eq('id', e.id)
+      if (res.error) throw new Error(res.error.message)
+      emitChanged()
+    }, emitChanged)
   }
   return (
     <section className="kb__general">

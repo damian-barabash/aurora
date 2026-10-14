@@ -5,7 +5,8 @@ import {
   requireAdmin, requireMember, requireUser, setSetting, sha256,
 } from '../_shared/core.ts'
 import { generateDigest } from '../_shared/digest.ts'
-import { GOOGLE_SCOPES, googleClient, REDIRECT_URI, stripHtml, syncIntegration } from '../_shared/google.ts'
+import { readFile } from '../_shared/files.ts'
+import { GOOGLE_SCOPES, googleClient, REDIRECT_URI, syncIntegration } from '../_shared/google.ts'
 import { applyProposal, embedEntries, ingestText } from '../_shared/ingest.ts'
 import { META_REDIRECT, socialActions } from '../_shared/social.ts'
 import { crawlStep, safeUrl, startCrawl } from '../_shared/web.ts'
@@ -296,32 +297,14 @@ const actions: Record<string, (me: Me, b: Body) => Promise<unknown>> = {
     return total
   },
 
+  /** AI czyta dokument w tle; panel śledzi status przy pliku (queued → reading → done / empty / error). */
   async extract_file(me, b) {
-    const { data: file } = await db.from('files').select('*').eq('id', b.file_id).single()
+    const { data: file } = await db.from('files').select('id, company_id, name, mime, kind').eq('id', b.file_id).single()
     if (!file) throw new HttpError(404, 'not_found')
     await requireMember(me, file.company_id)
-    const { data: blob, error } = await db.storage.from('media').download(file.path)
-    if (error || !blob) throw new HttpError(400, 'download_failed')
-    const name = String(file.name).toLowerCase()
-    let text = ''
-    if (name.endsWith('.pdf') || file.mime === 'application/pdf') {
-      const { extractText, getDocumentProxy } = await import('npm:unpdf@0.12.1')
-      const pdf = await getDocumentProxy(new Uint8Array(await blob.arrayBuffer()))
-      const out = await extractText(pdf, { mergePages: true })
-      text = Array.isArray(out.text) ? out.text.join('\n') : out.text
-    } else if (name.endsWith('.docx')) {
-      const { unzipSync, strFromU8 } = await import('npm:fflate@0.8.2')
-      const zip = unzipSync(new Uint8Array(await blob.arrayBuffer()))
-      const xml = zip['word/document.xml'] ? strFromU8(zip['word/document.xml']) : ''
-      text = xml.replace(/<\/w:p>/g, '\n').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    } else if (/\.(txt|md|csv|json)$/.test(name) || (file.mime ?? '').startsWith('text/')) {
-      text = await blob.text()
-      if (name.endsWith('.html')) text = stripHtml(text)
-    } else if (name.endsWith('.html') || name.endsWith('.htm')) {
-      text = stripHtml(await blob.text())
-    } else throw new HttpError(400, 'unsupported_file')
-    if (text.trim().length < 40) throw new HttpError(400, 'no_text_in_file')
-    return actions.import_text(me, { company_id: file.company_id, text, label: file.name, product_id: file.product_id, brand_id: file.brand_id })
+    if (!/\.(pdf|docx|txt|md|csv|json|html?)$/i.test(file.name) && !(file.mime ?? '').startsWith('text/')) throw new HttpError(400, 'unsupported_file')
+    EdgeRuntime.waitUntil(readFile(file.id, { userId: me.id, force: !!b.force, deadline: Date.now() + 110_000 }).catch((e) => console.error('readFile', e)))
+    return { started: true }
   },
 
   async import_site(me, b) {

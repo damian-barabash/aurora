@@ -3,6 +3,7 @@
 import { db, json } from '../_shared/core.ts'
 import { generateDigest } from '../_shared/digest.ts'
 import { syncIntegration } from '../_shared/google.ts'
+import { readQueuedFiles } from '../_shared/files.ts'
 import { embedEntries } from '../_shared/ingest.ts'
 import { crawlStep, requeueStale, startCrawl } from '../_shared/web.ts'
 
@@ -20,6 +21,13 @@ Deno.serve(async (req) => {
     report.embedded = missing?.length ?? 0
   } catch (e) {
     report.embed_error = String(e)
+  }
+
+  // dokumenty, których panel nie zdążył przeczytać (np. karta zamknięta zaraz po wgraniu)
+  try {
+    report.files = await readQueuedFiles(started + 70_000)
+  } catch (e) {
+    report.files_error = String(e)
   }
 
   // poczta: najdawniej synchronizowane konta w pierwszej kolejności

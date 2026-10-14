@@ -8,6 +8,7 @@ import { BrandEditor } from '../components/BrandEditor'
 import { Button, Empty, IconBtn, Menu, MenuItem, useFeedback } from '../components/ui'
 import { flash, leave } from '../lib/motion'
 import { supabase } from '../lib/supabase'
+import { background } from '../lib/sync'
 import type { Brand } from '../lib/types'
 
 /**
@@ -17,7 +18,7 @@ import type { Brand } from '../lib/types'
 export default function BrandsPage() {
   const company = useCompany()
   const { canManage } = useSession()
-  const { reloadBrands } = usePanel()
+  const { reloadBrands, patchBrands, patchClusters } = usePanel()
   const { allClusters, rows, all, group } = useBrands()
   const { fail, toast, confirm } = useFeedback()
   const [editor, setEditor] = useState<{ brand?: Brand; cluster?: string | null } | null>(null)
@@ -52,9 +53,16 @@ export default function BrandsPage() {
     const name = rename.trim()
     setRenaming(null)
     if (!c.id || !name || name === c.name) return
-    const { error } = await supabase.from('brand_clusters').update({ name }).eq('id', c.id)
-    if (error) return fail(error.code === '23505' ? 'Taka kategoria już istnieje' : error.message)
-    done(c.id, 'Nazwa zmieniona')
+    if (rows.some((x) => x.id !== c.id && x.name.toLowerCase() === name.toLowerCase())) return fail('Taka kategoria już istnieje')
+    const id = c.id
+    patchClusters((list) => list.map((x) => (x.id === id ? { ...x, name } : x)))
+    patchBrands((list) => list.map((b) => (b.cluster_id === id ? { ...b, cluster: name } : b)))
+    flash(id)
+    background('Zmiana nazwy kategorii', async () => {
+      const res = await supabase.from('brand_clusters').update({ name }).eq('id', id)
+      if (res.error) throw new Error(res.error.message)
+      emitChanged()
+    }, reloadBrands)
   }
   const moveCluster = async (c: Cluster, dir: -1 | 1) => {
     const list = [...rows]
@@ -62,8 +70,14 @@ export default function BrandsPage() {
     const j = i + dir
     if (i < 0 || j < 0 || j >= list.length) return
     ;[list[i], list[j]] = [list[j], list[i]]
-    await Promise.all(list.map((x, k) => supabase.from('brand_clusters').update({ position: (k + 1) * 10 }).eq('id', x.id)))
-    done(c.id!)
+    patchClusters(() => list.map((x, k) => ({ ...x, position: (k + 1) * 10 })))
+    flash(c.id!)
+    background('Zmiana kolejności kategorii', async () => {
+      const res = await Promise.all(list.map((x, k) => supabase.from('brand_clusters').update({ position: (k + 1) * 10 }).eq('id', x.id)))
+      const err = res.find((r) => r.error)?.error
+      if (err) throw new Error(err.message)
+      emitChanged()
+    }, reloadBrands)
   }
   const removeCluster = async (c: Cluster) => {
     if (!c.id) return
@@ -77,10 +91,15 @@ export default function BrandsPage() {
     if (error) return fail(error.message)
     done(undefined, 'Kategoria usunięta')
   }
-  const moveBrand = async (b: Brand, clusterId: string | null) => {
-    const { error } = await supabase.from('brands').update({ cluster_id: clusterId }).eq('id', b.id)
-    if (error) return fail(error.message)
-    done(b.id, 'Marka przeniesiona')
+  const moveBrand = (b: Brand, clusterId: string | null) => {
+    const name = rows.find((x) => x.id === clusterId)?.name ?? ''
+    patchBrands((list) => list.map((x) => (x.id === b.id ? { ...x, cluster_id: clusterId, cluster: name } : x)))
+    requestAnimationFrame(() => flash(b.id))
+    background(`Przenoszenie marki ${b.name}`, async () => {
+      const res = await supabase.from('brands').update({ cluster_id: clusterId }).eq('id', b.id)
+      if (res.error) throw new Error(res.error.message)
+      emitChanged()
+    }, reloadBrands)
   }
   const reorderBrand = async (c: Cluster, b: Brand, dir: -1 | 1) => {
     const list = [...c.brands]
@@ -89,8 +108,15 @@ export default function BrandsPage() {
     if (j < 0 || j >= list.length) return
     ;[list[i], list[j]] = [list[j], list[i]]
     const base = Math.min(...c.brands.map((x) => x.position))
-    await Promise.all(list.map((x, k) => supabase.from('brands').update({ position: base + k * 10 }).eq('id', x.id)))
-    done(b.id)
+    const pos = new Map(list.map((x, k) => [x.id, base + k * 10]))
+    patchBrands((all) => all.map((x) => (pos.has(x.id) ? { ...x, position: pos.get(x.id)! } : x)).sort((a, z) => a.position - z.position))
+    flash(b.id)
+    background('Zmiana kolejności marek', async () => {
+      const res = await Promise.all(list.map((x) => supabase.from('brands').update({ position: pos.get(x.id) }).eq('id', x.id)))
+      const err = res.find((r) => r.error)?.error
+      if (err) throw new Error(err.message)
+      emitChanged()
+    }, reloadBrands)
   }
   const restore = async (b: Brand) => {
     await supabase.from('brands').update({ status: 'active' }).eq('id', b.id)

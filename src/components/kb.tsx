@@ -7,6 +7,7 @@ import { useSession } from '../app/session'
 import { BRAND_ICONS, BrandIcon } from '../brand/Logo'
 import { isImage, removeFile, setProductLogo, uploadFile } from '../lib/files'
 import { api, supabase } from '../lib/supabase'
+import { background } from '../lib/sync'
 import { useSigned } from '../lib/useSigned'
 import type { Collection, Entry, EntryType, FileRow, Product, ProductState, Source, Visibility } from '../lib/types'
 import { Badge, Button, cx, Field, Modal, Segmented, Toggle, useFeedback } from './ui'
@@ -129,7 +130,6 @@ export function EntryEditor({ open, onClose, entry, productId, brandId, preset }
 }) {
   const types = useTypeLabels()
   const { company, canManage } = useSession()
-  const { fail, toast } = useFeedback()
   const blank = {
     type: 'fact' as EntryType, title: '', body: '', effective_from: '', effective_to: '', importance: 1, pinned: false,
     brand_id: null as string | null, visibility: 'internal' as Visibility,
@@ -163,22 +163,23 @@ export function EntryEditor({ open, onClose, entry, productId, brandId, preset }
       // wpis z produktem dziedziczy markę produktu (pilnuje tego baza)
       ...(withProduct ? {} : { brand_id: f.brand_id }),
     }
-    const q = entry
-      ? supabase.from('entries').update({ ...row, status: 'current', source: 'manual', source_label: null, verified_at: new Date().toISOString() }).eq('id', entry.id).select('id').single()
-      : supabase.from('entries').insert({ ...row, company_id: company.id, product_id: productId ?? null, source: 'manual', verified_at: new Date().toISOString() }).select('id').single()
-    const { data, error } = await q
-    if (error || !data) {
-      setBusy(false)
-      return fail(error?.message ?? 'error')
-    }
-    for (const file of pending) {
-      await uploadFile(company.id, file, { productId: entry?.product_id ?? productId ?? null, entryId: data.id, kind: 'image' }).catch(fail)
-    }
+    // zapis optymistyczny: okno zamyka się od razu, a wpis i zdjęcia idą na serwer w tle
+    const id = entry?.id ?? crypto.randomUUID()
+    const photos = pending
+    const companyId = company.id
+    const photoProduct = entry?.product_id ?? productId ?? null
     setBusy(false)
-    api('embed', { ids: [data.id] }).catch(() => {})
-    toast(entry ? 'Zapisano' : 'Dodano do bazy wiedzy')
-    emitChanged()
     onClose(true)
+    background(entry ? 'Zapisywanie wpisu' : 'Dodawanie wpisu', async () => {
+      const { error } = entry
+        ? await supabase.from('entries').update({ ...row, status: 'current', source: 'manual', source_label: null, verified_at: new Date().toISOString() }).eq('id', id)
+        : await supabase.from('entries').upsert({ ...row, id, company_id: companyId, product_id: productId ?? null, source: 'manual', verified_at: new Date().toISOString() })
+      if (error) throw new Error(error.message)
+      emitChanged()
+      for (const file of photos) await uploadFile(companyId, file, { productId: photoProduct, entryId: id, kind: 'image' })
+      if (photos.length) emitChanged()
+      api('embed', { ids: [id] }).catch(() => {})
+    })
   }
 
   const isNews = f.type === 'announcement' || f.type === 'news'
@@ -272,6 +273,17 @@ export function ProductEditor({ open, onClose, product, collections, defaultColl
     if (!company) return
     setBusy(true)
     const row = { ...f, name: f.name.trim(), collection_id: f.collection_id || null }
+    if (product && logo === undefined) {
+      const id = product.id
+      setBusy(false)
+      onClose(id)
+      background('Zapisywanie produktu', async () => {
+        const { error } = await supabase.from('products').update(row).eq('id', id)
+        if (error) throw new Error(error.message)
+        emitChanged()
+      })
+      return
+    }
     const { data, error } = product
       ? await supabase.from('products').update(row).eq('id', product.id).select('id').single()
       : await supabase.from('products').insert({ ...row, company_id: company.id, last_verified_at: new Date().toISOString() }).select('id').single()

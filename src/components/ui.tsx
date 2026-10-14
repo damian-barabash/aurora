@@ -5,6 +5,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { ApiError } from '../lib/supabase'
+import { recentFailure } from '../lib/sync'
 
 export const cx = (...parts: (string | false | null | undefined)[]) => parts.filter(Boolean).join(' ')
 
@@ -135,6 +136,8 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     setTimeout(() => setToasts((list) => list.filter((x) => x.id !== id)), tone === 'error' ? 6000 : 3200)
   }, [])
   const fail = useCallback((e: unknown) => {
+    // ten błąd właśnie pokazało okno synchronizacji — nie dublujemy go tostem
+    if (recentFailure()) return
     toast(e instanceof ApiError ? e.text() : e instanceof Error ? e.message : String(e), 'error')
   }, [toast])
   const confirm = useCallback((opts: ConfirmOpts) => new Promise<boolean>((resolve) => setAsk({ ...opts, resolve })), [])

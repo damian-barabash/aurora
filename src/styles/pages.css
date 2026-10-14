@@ -588,3 +588,57 @@ button.pmeta__item:hover { background: var(--fill); }
   .brow { flex-wrap: wrap; }
   .select.brow__move { width: 100%; order: 3; }
 }
+
+/* ───────── czytanie plików przez AI (0.4.0) ───────── */
+.fstatus { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; margin-top: 6px; padding: 3px 8px; border-radius: 999px; border: 0; font: inherit; font-size: 12px; font-weight: 500; text-align: left; background: var(--fill-2); color: var(--muted); }
+.fstatus svg { flex: none; }
+.fstatus--ok { background: #000; color: #fff; }
+.fstatus--wait { background: var(--accent-soft); color: #000; }
+.fstatus--err { background: var(--accent); color: #000; }
+button.fstatus { cursor: pointer; }
+button.fstatus:hover { filter: brightness(0.94); }
+.fcard.is-reading { border-color: var(--accent); }
+.fcard figcaption { min-width: 0; }
+.files__brand { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; font-size: 14px; color: var(--muted); }
+.files__brand .select { width: auto; min-width: 260px; }
+.kb__nobrand { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border: 1px dashed var(--line-2); border-radius: var(--r-xl); font-size: 14px; color: var(--muted); transition: background 0.18s, border-color 0.18s; }
+.kb__nobrand b { color: #000; font-weight: 500; }
+.kb__nobrand:hover { background: var(--fill); border-color: #000; }
+
+/* ───────── mapa wiedzy ───────── */
+.kmap { margin-top: 16px; border: 1px solid var(--line); border-radius: var(--r-2xl); background: var(--surface); overflow: hidden; }
+.kmap__bar { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.kmap__legend { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); }
+.kmap__lg { display: inline-block; width: 22px; height: 0; border-top: 2px solid var(--line-2); margin-left: 8px; }
+.kmap__lg--mention { border-top: 3px dashed var(--accent-2); }
+.kmap__stage { position: relative; height: min(70vh, 680px); }
+.kmap__svg { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; user-select: none; background: var(--bg); }
+.kmap__svg:active { cursor: grabbing; }
+.kmap__tree { stroke: #cfcfcc; stroke-width: 1.5; transition: opacity 0.2s; }
+.kmap__mention { fill: none; stroke: var(--accent-2); stroke-dasharray: 6 5; stroke-linecap: round; opacity: 0.9; transition: opacity 0.2s; }
+.kmap__node { cursor: pointer; transition: opacity 0.2s; }
+.kmap__node circle, .kmap__node rect { transition: transform 0.2s var(--ease); }
+.kmap__node:hover circle { transform: scale(1.08); }
+.kmap__node--group circle { fill: var(--accent); }
+.kmap__node--cluster rect { fill: #fff; stroke: #000; stroke-width: 2; }
+.kmap__node--brand circle { fill: #000; }
+.kmap__node--product circle { fill: #fff; stroke: #000; stroke-width: 1.6; }
+.kmap__node.is-on circle, .kmap__node.is-on rect { stroke: var(--accent-2); stroke-width: 4; }
+.kmap__ini { fill: #fff; font-size: 11px; font-weight: 600; text-anchor: middle; pointer-events: none; }
+.kmap__node--group .kmap__ini { fill: #000; font-size: 15px; }
+.kmap__label { font-size: 12px; text-anchor: middle; fill: #000; paint-order: stroke; stroke: var(--bg); stroke-width: 4px; pointer-events: none; }
+.kmap__node--cluster .kmap__label { fill: var(--muted); font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; }
+.kmap__node--brand .kmap__label, .kmap__node--group .kmap__label { font-weight: 600; font-size: 13px; }
+.is-dim { opacity: 0.15; }
+.kmap__panel { position: absolute; top: 12px; right: 12px; bottom: 12px; width: 300px; overflow-y: auto; background: #fff; border: 1px solid var(--line); border-radius: var(--r-xl); padding: 16px; display: flex; flex-direction: column; gap: 8px; animation: rise 0.25s var(--ease); }
+.kmap__panel .btn { align-self: flex-start; }
+.kmap__pname { font-size: 18px; letter-spacing: -0.02em; }
+.kmap__rel { display: grid; gap: 6px; margin-top: 6px; }
+.kmap__rel ul { margin: 0; padding-left: 16px; font-size: 13px; color: var(--fg-2); display: grid; gap: 3px; }
+.kmap__relrow button { border: 0; background: none; padding: 0; font: inherit; font-size: 13.5px; text-align: left; cursor: pointer; }
+.kmap__relrow button:hover b { text-decoration: underline; }
+@media (max-width: 720px) {
+  .kmap__stage { height: 72vh; }
+  .kmap__panel { top: auto; left: 8px; right: 8px; width: auto; max-height: 45%; }
+  .kmap__legend { display: none; }
+}

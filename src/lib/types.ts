@@ -167,6 +167,18 @@ export interface FileRow {
   note: string
   created_by: string | null
   created_at: string
+  /** czy AI przeczytało dokument: queued → reading → done / empty / error; obrazy: skipped */
+  ai_status: 'queued' | 'reading' | 'done' | 'empty' | 'error' | 'skipped'
+  ai_result: {
+    applied: number
+    proposed: number
+    skipped: number
+    chars?: number
+    progress?: { done: number; total: number } | null
+    items: { title: string; outcome: 'applied' | 'proposed' | 'duplicate' | 'personal' | 'past' | 'empty'; where: string; note?: string; existing?: { id: string; title: string; where: string } }[]
+  } | null
+  ai_error: string | null
+  ai_read_at: string | null
 }
 
 /** Profil marki (strategia, identyfikacja, ton). `brand_id = null` = profil całej grupy. */

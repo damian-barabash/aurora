@@ -14,6 +14,7 @@ import type { Brand, BrandCluster, Chat, Collection, Notification } from '../lib
 import { BrandMark, useBrands } from './brands'
 import { Onboarding } from './Onboarding'
 import { APP_VERSION, openWhatsNew, WhatsNew } from './WhatsNew'
+import { SyncDock } from './SyncDock'
 import { useSession } from './session'
 
 // ───────── общие данные панели: чаты, счётчики, сигнал «данные изменились» ─────────
@@ -27,6 +28,9 @@ interface PanelCtx {
   brands: Brand[]
   clusters: BrandCluster[]
   reloadBrands(): Promise<void>
+  /** zmiana optymistyczna: widok od razu, serwer potwierdza w tle */
+  patchBrands(fn: (list: Brand[]) => Brand[]): void
+  patchClusters(fn: (list: BrandCluster[]) => BrandCluster[]): void
 }
 const PanelContext = createContext<PanelCtx>(null!)
 export const usePanel = () => useContext(PanelContext)
@@ -104,7 +108,7 @@ export function Shell() {
     emitChanged()
   }, [params, setParams, toast])
 
-  const ctx = useMemo(() => ({ chats, reloadChats, pending, reloadCounts, brands, clusters, reloadBrands }), [chats, reloadChats, pending, reloadCounts, brands, clusters, reloadBrands])
+  const ctx = useMemo(() => ({ chats, reloadChats, pending, reloadCounts, brands, clusters, reloadBrands, patchBrands: setBrands, patchClusters: setClusters }), [chats, reloadChats, pending, reloadCounts, brands, clusters, reloadBrands])
 
   if (loading || !session || !profile) return <div className="boot"><Mark size={34} /></div>
 
@@ -132,6 +136,7 @@ export function Shell() {
       </div>
       {company && <Onboarding step={onboardingStep} setStep={setOnboardingStep} />}
       <WhatsNew />
+      <SyncDock />
     </PanelContext.Provider>
   )
 }
@@ -201,10 +206,12 @@ function Sidebar({ collapsed, onCollapse }: { collapsed: boolean; onCollapse(): 
   return (
     <aside className="side">
       <div className="side__top">
+        {/* znak i napis są w DOM-ie jednocześnie i przenikają się — bez skoku przy zwijaniu */}
         <Link to="/app" className="side__logo" aria-label="AURORA">
-          {collapsed ? <Mark size={26} /> : <Wordmark size={24} />}
+          <span className="side__mark"><Mark size={26} /></span>
+          <span className="side__word"><Wordmark size={24} /></span>
         </Link>
-        <IconBtn label="Zwiń menu" className="side__collapse" onClick={onCollapse}><PanelLeft size={18} /></IconBtn>
+        <IconBtn label={collapsed ? 'Rozwiń menu' : 'Zwiń menu'} className="side__collapse" onClick={onCollapse}><PanelLeft size={18} /></IconBtn>
       </div>
 
       <nav className="side__nav">

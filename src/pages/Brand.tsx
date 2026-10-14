@@ -8,6 +8,7 @@ import { FileGrid } from '../components/FileGrid'
 import { BrandSelect } from '../components/kb'
 import { Button, copyText, Field, IconBtn, Loading, Tabs, useFeedback } from '../components/ui'
 import { supabase } from '../lib/supabase'
+import { background } from '../lib/sync'
 import type { BrandProfile, FileRow } from '../lib/types'
 
 type Section = 'strategy' | 'identity' | 'tone'
@@ -24,10 +25,9 @@ export default function BrandPage() {
   const brand = brandId ? byId.get(brandId) ?? null : null
   const scope = brandId ?? 'group'
   const nav = useNavigate()
-  const { fail, toast, confirm } = useFeedback()
+  const { confirm, toast } = useFeedback()
   const [f, setF] = useState<BrandProfile | null>(null)
   const [dirty, setDirty] = useState(false)
-  const [busy, setBusy] = useState(false)
 
   const { data, loading, reload } = useQuery(async () => {
     let profile = supabase.from('brand').select('*').eq('company_id', company.id)
@@ -52,20 +52,18 @@ export default function BrandPage() {
     setDirty(true)
   }, [])
 
-  const save = async () => {
+  const save = () => {
     if (!f) return
-    setBusy(true)
     const { updated_at: _skip, id, ...row } = f
     void _skip
     const values = { ...row, company_id: company.id, brand_id: brandId, updated_at: new Date().toISOString() }
-    const { error } = id
-      ? await supabase.from('brand').update(values).eq('id', id)
-      : await supabase.from('brand').insert(values)
-    setBusy(false)
-    if (error) return fail(error.message)
+    // optymistycznie: przycisk od razu gaśnie, zapis idzie w tle (postęp w prawym dolnym rogu)
     setDirty(false)
-    reload()
-    toast(`${brand?.name ?? 'Profil grupy'} — zapisano. AI już uwzględnia zmiany.`)
+    background(`Zapisywanie profilu: ${brand?.name ?? 'grupa'}`, async () => {
+      const res = id ? await supabase.from('brand').update(values).eq('id', id) : await supabase.from('brand').insert(values)
+      if (res.error) throw new Error(res.error.message)
+      reload()
+    }, () => setDirty(true))
   }
 
   if ((loading && !data) || !f) return <Loading />
@@ -84,7 +82,7 @@ export default function BrandPage() {
             ? 'Stąd AI bierze charakter tej marki: jak brzmieć, dla kogo pisać i jak wyglądać. Zasady grupy obowiązują dodatkowo.'
             : 'Zasady wspólne dla wszystkich marek. AI łączy je z profilem konkretnej marki.'}</p>
         </div>
-        {canManage && <Button variant="primary" busy={busy} disabled={!dirty} onClick={save}>Zapisz</Button>}
+        {canManage && <Button variant="primary" disabled={!dirty} onClick={save}>Zapisz</Button>}
       </div>
       <div className="brandpick">
         <BrandMark brand={brand} group={group} size={40} />

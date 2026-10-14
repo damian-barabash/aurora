@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { trackedFetch } from './sync'
 
 // Адрес проекта и publishable-ключ публичны (доступ ограничивает RLS), поэтому лежат в коде:
 // сборка на GitHub Pages не зависит от переменных репозитория. Env нужен только для другого проекта.
@@ -7,6 +8,8 @@ const key = (import.meta.env.VITE_SUPABASE_KEY as string | undefined) || 'sb_pub
 
 export const supabase = createClient(url, key, {
   auth: { persistSession: true, autoRefreshToken: true, storageKey: 'aurora_auth' },
+  // każdy zapis widać w znaczniku synchronizacji, błędy — w oknie z wyjaśnieniem
+  global: { fetch: trackedFetch },
 })
 
 export const FUNCTIONS_URL = `${url}/functions/v1`
@@ -59,7 +62,7 @@ async function authHeaders() {
 
 /** Akcje serwerowe (konta, integracje, import, propozycje). */
 export async function api<T = Record<string, unknown>>(action: string, body: Record<string, unknown> = {}): Promise<T> {
-  const r = await fetch(`${FUNCTIONS_URL}/api`, {
+  const r = await trackedFetch(`${FUNCTIONS_URL}/api`, {
     method: 'POST',
     headers: await authHeaders(),
     body: JSON.stringify({ action, ...body }),

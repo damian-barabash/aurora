@@ -1,5 +1,42 @@
 [
   {
+    "version": "0.4.0",
+    "date": "2026-10-14",
+    "icon": "reading",
+    "title": "Pliki czytane od razu, mapa marek i płynniejszy panel",
+    "lead": "Wgrany dokument AI czyta sama i od razu pokazuje, co z niego trafiło do bazy. Do tego mapa powiązań między markami i zapisy bez czekania.",
+    "items": [
+      {
+        "title": "Każdy dokument jest czytany od razu",
+        "text": "PDF, DOCX, TXT, MD, CSV i HTML AI czyta zaraz po wgraniu, także długie pliki — kawałek po kawałku. Gdy zamkniesz kartę, czytanie dokończy się samo."
+      },
+      {
+        "title": "Etykieta przy każdym pliku",
+        "text": "Czeka na AI, AI czyta (z postępem), Przeczytano · +5 faktów, nic nowego albo błąd. Kliknij etykietę, żeby zobaczyć, co dokładnie trafiło do bazy. Zdjęć AI na razie nie czyta — też to widać."
+      },
+      {
+        "title": "Wszystkie marki w bazie wiedzy",
+        "text": "Marki bez produktów też są widoczne w katalogu — z liczbą wpisów o marce."
+      },
+      {
+        "title": "Mapa marek",
+        "text": "Trzeci widok obok kafelków i listy: grupa, kategorie, marki i produkty na jednej mapie, a przerywane linie pokazują, które fakty jednej marki dotyczą innej. Kliknij węzeł, żeby zobaczyć powiązania i fakty."
+      },
+      {
+        "title": "Zapisy bez czekania",
+        "text": "Okna zamykają się od razu, karty znikają od razu, a zapis idzie w tle — mały znacznik w prawym dolnym rogu pokazuje postęp. Wracając na ekran, widzisz dane od razu."
+      },
+      {
+        "title": "Jasna informacja o błędach",
+        "text": "Gdy coś się nie zapisze, okno mówi co i dlaczego, z przyciskiem „Spróbuj ponownie”. Bez internetu panel od razu to pokazuje."
+      },
+      {
+        "title": "Płynne zwijanie menu",
+        "text": "Menu po lewej zwija się i rozwija płynnie, ikony zostają na swoim miejscu."
+      }
+    ]
+  },
+  {
     "version": "0.3.0",
     "date": "2026-10-14",
     "icon": "categories",

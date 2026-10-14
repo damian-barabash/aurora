@@ -19,6 +19,9 @@ interface SessionCtx {
 }
 
 const Ctx = createContext<SessionCtx>(null!)
+// Pamięć ostatnich wyników: wracając na ekran, widzisz dane od razu, a świeże dociągają się w tle.
+const cache = new Map<string, unknown>()
+
 const KEY = 'aurora_company'
 
 export function SessionProvider({ children }: { children: ReactNode }) {
@@ -53,6 +56,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     })
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s)
+      if (event === 'SIGNED_OUT') cache.clear()
       if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'USER_UPDATED') load(s)
     })
     return () => sub.subscription.unsubscribe()
@@ -79,6 +83,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       await supabase.from('profiles').update(patch).eq('id', profile.id)
     },
     async signOut() {
+      cache.clear()
       await supabase.auth.signOut()
     },
   }), [loading, session, profile, companies, company, load])
@@ -93,27 +98,43 @@ export function useCompany(): Company {
   return useContext(Ctx).company!
 }
 
-/** Minimalne pobieranie danych: wynik, stan ładowania i ręczne odświeżenie. */
+const keyOf = (fn: unknown, deps: DependencyList) => `${String(fn)}|${JSON.stringify(deps)}`
+
+/**
+ * Pobieranie danych w trybie „najpierw pokaż, potem odśwież”: przy ponownym wejściu na ekran
+ * nie ma kręcącego się koła — od razu są poprzednie dane, a po chwili aktualne.
+ */
 export function useQuery<T>(fn: () => PromiseLike<T>, deps: DependencyList): { data: T | undefined; loading: boolean; reload(): Promise<void>; set(v: T): void } {
-  const [data, setData] = useState<T>()
-  const [loading, setLoading] = useState(true)
+  const key = keyOf(fn, deps)
+  const [data, setData] = useState<T | undefined>(() => cache.get(key) as T | undefined)
+  const [loading, setLoading] = useState(() => !cache.has(key))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const run = useCallback(fn, deps)
   useEffect(() => {
     let alive = true
-    setLoading(true)
+    if (cache.has(key)) {
+      setData(cache.get(key) as T)
+      setLoading(false)
+    } else setLoading(true)
     Promise.resolve(run()).then((d) => {
       if (!alive) return
+      cache.set(key, d)
       setData(d)
       setLoading(false)
     })
     return () => {
       alive = false
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [run])
   const reload = useCallback(async () => {
     const d = await run()
+    cache.set(key, d)
     setData(d)
-  }, [run])
-  return { data, loading, reload, set: setData }
+  }, [run, key])
+  const put = useCallback((v: T) => {
+    cache.set(key, v)
+    setData(v)
+  }, [key])
+  return { data, loading, reload, set: put }
 }

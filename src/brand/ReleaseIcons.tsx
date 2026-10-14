@@ -52,9 +52,29 @@ function Categories({ size }: { size: number }) {
   )
 }
 
+/** 0.4.0 — dokument, z którego AI wyjmuje fakty: kartki wylatują z pliku i łączą się w mapę. */
+function Reading({ size }: { size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 120 120" aria-hidden>
+      <rect x="0" y="0" width="120" height="120" rx="30" fill={ACCENT} />
+      {/* dokument z zagiętym rogiem */}
+      <path d="M22 26 h30 l12 12 v50 a6 6 0 0 1 -6 6 h-36 a6 6 0 0 1 -6 -6 v-56 a6 6 0 0 1 6 -6 z" fill={PAPER} stroke={INK} strokeWidth="4" strokeLinejoin="round" />
+      <path d="M52 26 v12 h12" fill="none" stroke={INK} strokeWidth="4" strokeLinejoin="round" />
+      <path d="M28 52 h26 M28 62 h26 M28 72 h18" stroke={INK} strokeWidth="4" strokeLinecap="round" />
+      {/* fakty wyjęte z pliku i połączone */}
+      <path d="M66 58 L84 40 M66 58 L92 62 M84 40 L92 62 M92 62 L86 86" stroke={INK} strokeWidth="3.5" strokeLinecap="round" />
+      <circle cx="84" cy="40" r="7" fill={INK} />
+      <circle cx="92" cy="62" r="7" fill={INK} />
+      <circle cx="86" cy="86" r="6" fill={PAPER} stroke={INK} strokeWidth="3.5" />
+      <circle cx="66" cy="58" r="5" fill={INK} />
+    </svg>
+  )
+}
+
 export const RELEASE_ICONS: Record<string, (p: { size: number }) => ReactElement> = {
   brands: Brands,
   categories: Categories,
+  reading: Reading,
 }
 
 export function ReleaseIcon({ name, size = 96 }: { name: string; size?: number }) {

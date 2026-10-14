@@ -5,10 +5,11 @@ import { useBrands } from '../app/brands'
 import { emitChanged, Page, useChanged } from '../app/Shell'
 import { useCompany, useQuery, useSession } from '../app/session'
 import { BrandSelect, SourceTag, useTypeLabels, VISIBILITY } from '../components/kb'
-import { Badge, Button, cx, Empty, Field, Loading, Modal, Segmented, Tabs, useFeedback } from '../components/ui'
+import { Badge, Button, cx, Empty, Field, Loading, Modal, Segmented, Tabs } from '../components/ui'
 import { fmtDate, fmtWhen } from '../lib/format'
 import { leave } from '../lib/motion'
 import { api, supabase } from '../lib/supabase'
+import { background } from '../lib/sync'
 import type { Entry, Proposal, Visibility } from '../lib/types'
 
 interface Draft {
@@ -26,11 +27,13 @@ export default function ReviewPage() {
   const { canManage } = useSession()
   const { label, brands } = useBrands()
   const types = useTypeLabels()
-  const { fail, toast } = useFeedback()
   const [tab, setTab] = useState<'pending' | 'done'>('pending')
   const [brandFilter, setBrandFilter] = useState<string>('all')
-  const [busy, setBusy] = useState<string | null>(null)
   const [picked, setPicked] = useState<Set<string>>(new Set())
+  // karty zdjęte optymistycznie, zanim serwer potwierdzi decyzję
+  const [gone, setGone] = useState<Set<string>>(new Set())
+  const hide = (id: string) => setGone((g) => new Set(g).add(id))
+  const unhide = (id: string) => setGone((g) => { const n = new Set(g); n.delete(id); return n })
   const [editing, setEditing] = useState<Proposal | null>(null)
   const [draft, setDraft] = useState<Draft>({ title: '', body: '', effective_from: '', brand_id: null, product_id: '', visibility: 'internal' })
 
@@ -52,7 +55,7 @@ export default function ReviewPage() {
   useChanged(useCallback(() => { reload() }, [reload]))
   const productName = useMemo(() => Object.fromEntries((data?.products ?? []).map((p) => [p.id, p.name])) as Record<string, string>, [data])
 
-  const pending = useMemo(() => (data?.list ?? []).filter((p) => p.status === 'pending'), [data])
+  const pending = useMemo(() => (data?.list ?? []).filter((p) => p.status === 'pending' && !gone.has(p.id)), [data, gone])
   const done = useMemo(() => (data?.list ?? []).filter((p) => p.status !== 'pending'), [data])
   const scoped = (tab === 'pending' ? pending : done).filter((p) => brandFilter === 'all' || (p.brand_id ?? 'group') === brandFilter)
   // paczki: jeden import (mail, plik, rozmowa z Claude) = jedna paczka
@@ -64,29 +67,24 @@ export default function ReviewPage() {
   useEffect(() => setPicked(new Set()), [tab, brandFilter])
 
   const act = async (p: Proposal, action: 'proposal_apply' | 'proposal_reject', edits?: Record<string, unknown>) => {
-    setBusy(p.id)
-    try {
+    // optymistycznie: karta od razu odjeżdża, serwer dostaje decyzję w tle; przy błędzie wraca na listę
+    await leave(p.id, action === 'proposal_apply')
+    hide(p.id)
+    background(action === 'proposal_apply' ? 'Zatwierdzanie zmiany' : 'Odrzucanie zmiany', async () => {
       await api(action, { id: p.id, edits })
-      await leave(p.id, action === 'proposal_apply')
-      toast(action === 'proposal_apply' ? 'Baza wiedzy zaktualizowana' : p.kind === 'conflict' ? 'Zostawiono jak w bazie' : 'Odrzucono')
       emitChanged()
-    } catch (e) {
-      fail(e)
-    }
-    setBusy(null)
+    }, () => unhide(p.id))
   }
 
-  const bulk = async (decision: 'apply' | 'reject', opts: { ids?: string[]; batch_id?: string }) => {
-    setBusy('bulk')
-    try {
-      const { done: n } = await api<{ done: number }>('proposal_bulk', { company_id: company.id, decision, ...opts })
-      toast(decision === 'apply' ? `Zastosowano: ${n}` : `Odrzucono: ${n}`)
-      setPicked(new Set())
+  const bulk = (decision: 'apply' | 'reject', opts: { ids?: string[]; batch_id?: string }) => {
+    const ids = opts.ids ?? pending.filter((p) => p.batch_id === opts.batch_id).map((p) => p.id)
+    // optymistycznie: wszystkie karty znikają od razu, decyzja idzie w tle
+    setGone((g) => new Set([...g, ...ids]))
+    setPicked(new Set())
+    background(decision === 'apply' ? `Zatwierdzanie zmian (${ids.length})` : `Odrzucanie zmian (${ids.length})`, async () => {
+      await api('proposal_bulk', { company_id: company.id, decision, ids })
       emitChanged()
-    } catch (e) {
-      fail(e)
-    }
-    setBusy(null)
+    }, () => setGone((g) => { const n = new Set(g); ids.forEach((id) => n.delete(id)); return n }))
   }
 
   const toggle = (id: string) => setPicked((cur) => {
@@ -154,8 +152,8 @@ export default function ReviewPage() {
           <span className="grow" />
           {picked.size > 0 && (
             <>
-              <Button variant="primary" icon={<Check size={17} />} busy={busy === 'bulk'} onClick={() => bulk('apply', { ids: [...picked] })}>Zastosuj zaznaczone · {picked.size}</Button>
-              <Button variant="quiet" icon={<X size={16} />} disabled={busy === 'bulk'} onClick={() => bulk('reject', { ids: [...picked] })}>Odrzuć</Button>
+              <Button variant="primary" icon={<Check size={17} />} onClick={() => bulk('apply', { ids: [...picked] })}>Zastosuj zaznaczone · {picked.size}</Button>
+              <Button variant="quiet" icon={<X size={16} />} onClick={() => bulk('reject', { ids: [...picked] })}>Odrzuć</Button>
             </>
           )}
         </div>
@@ -173,8 +171,8 @@ export default function ReviewPage() {
                 <div className="batch">
                   <span><b>Paczka · {batchSize[p.batch_id!]}</b> {p.source_label ?? ''} · {fmtWhen(p.created_at)}</span>
                   <span className="grow" />
-                  <Button size="sm" variant="primary" icon={<Check size={15} />} disabled={busy === 'bulk'} onClick={() => bulk('apply', { batch_id: p.batch_id! })}>Zastosuj całą paczkę</Button>
-                  <Button size="sm" variant="quiet" disabled={busy === 'bulk'} onClick={() => bulk('reject', { batch_id: p.batch_id! })}>Odrzuć paczkę</Button>
+                  <Button size="sm" variant="primary" icon={<Check size={15} />} onClick={() => bulk('apply', { batch_id: p.batch_id! })}>Zastosuj całą paczkę</Button>
+                  <Button size="sm" variant="quiet" onClick={() => bulk('reject', { batch_id: p.batch_id! })}>Odrzuć paczkę</Button>
                 </div>
               )}
               <article data-id={p.id} className={cx('prop', p.kind === 'conflict' && 'prop--conflict', picked.has(p.id) && 'is-picked')}>
@@ -210,11 +208,11 @@ export default function ReviewPage() {
 
                 {p.status === 'pending' ? (
                   <div className="prop__acts">
-                    <Button variant="primary" icon={<Check size={17} />} busy={busy === p.id} onClick={() => act(p, 'proposal_apply')}>
+                    <Button variant="primary" icon={<Check size={17} />} onClick={() => act(p, 'proposal_apply')}>
                       {p.kind === 'conflict' ? 'Przyjmij nową wersję' : 'Zastosuj'}
                     </Button>
                     <Button icon={<PenLine size={16} />} onClick={() => openEditor(p)}>Popraw i zastosuj</Button>
-                    <Button variant="quiet" icon={<X size={16} />} disabled={busy === p.id} onClick={() => act(p, 'proposal_reject')}>
+                    <Button variant="quiet" icon={<X size={16} />} onClick={() => act(p, 'proposal_reject')}>
                       {p.kind === 'conflict' ? 'Zostaw jak w bazie' : 'Odrzuć'}
                     </Button>
                   </div>

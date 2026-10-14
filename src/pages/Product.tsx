@@ -14,6 +14,7 @@ import { fmtDate, fmtWhen } from '../lib/format'
 import { flash, leave } from '../lib/motion'
 import { isImage, setProductLogo } from '../lib/files'
 import { supabase } from '../lib/supabase'
+import { background } from '../lib/sync'
 import { useSigned } from '../lib/useSigned'
 import type { Collection, Entry, EntryType, FileRow, HistoryRow, Product } from '../lib/types'
 
@@ -118,10 +119,13 @@ export default function ProductPage() {
   }
   const entryAction = async (e: Entry, action: 'verify' | 'archive') => {
     const patch = action === 'verify' ? { status: 'current', verified_at: new Date().toISOString(), ...(e.effective_to && e.effective_to < today ? { effective_to: null } : {}) } : { status: 'archived' }
-    const { error } = await supabase.from('entries').update(patch).eq('id', e.id)
-    if (error) return fail(error.message)
+    // optymistycznie: animacja od razu, zapis w tle
     await (action === 'archive' ? leave(e.id) : flash(e.id))
-    emitChanged()
+    background(action === 'archive' ? 'Przenoszenie wpisu do archiwum' : 'Potwierdzanie wpisu', async () => {
+      const res = await supabase.from('entries').update(patch).eq('id', e.id)
+      if (res.error) throw new Error(res.error.message)
+      emitChanged()
+    }, emitChanged)
   }
 
   return (
