@@ -31,13 +31,17 @@ export const bare = (name: string) =>
   name.toLowerCase().replace(/\b20\d\d\b|[^\p{L} ]/gu, ' ').replace(/\s+/g, ' ').trim()
 
 export async function loadCatalog(companyId: string): Promise<Catalog | null> {
-  const [{ data: company }, { data: brands }, { data: products }] = await Promise.all([
+  const [{ data: company }, { data: brands }, { data: products }, { data: clusters }] = await Promise.all([
     db.from('companies').select('id, name, settings').eq('id', companyId).single(),
-    db.from('brands').select('id, name, cluster, aliases, summary, website').eq('company_id', companyId).eq('status', 'active').order('position'),
+    db.from('brands').select('id, name, cluster, cluster_id, aliases, summary, website, position').eq('company_id', companyId).eq('status', 'active').order('position'),
     db.from('products').select('id, name, summary, kind, brand_id').eq('company_id', companyId).neq('status', 'archived').order('name'),
+    db.from('brand_clusters').select('id, position').eq('company_id', companyId),
   ])
   if (!company) return null
-  const list = (brands ?? []) as BrandRow[]
+  // kolejność jak w panelu: kategoria, potem marka; marki bez kategorii na końcu
+  const rank = new Map((clusters ?? []).map((c) => [c.id, c.position as number]))
+  const list = ((brands ?? []) as (BrandRow & { cluster_id: string | null; position: number })[])
+    .sort((a, b) => (rank.get(a.cluster_id ?? '') ?? 1e9) - (rank.get(b.cluster_id ?? '') ?? 1e9) || a.position - b.position)
   return { company, brands: list, products: (products ?? []) as ProductRow[], brandById: new Map(list.map((b) => [b.id, b])) }
 }
 
@@ -111,10 +115,10 @@ export function productsInText(cat: Catalog, text: string): ProductRow[] {
 export function catalogText(cat: Catalog, opts: { summaries?: boolean; products?: boolean } = {}): string {
   const { summaries = true, products = true } = opts
   const lines: string[] = []
-  const clusters = [...new Set(cat.brands.map((b) => b.cluster || 'Inne'))]
+  const clusters = [...new Set(cat.brands.map((b) => b.cluster || 'Bez kategorii'))]
   for (const cluster of clusters) {
     lines.push(`${cluster}:`)
-    for (const b of cat.brands.filter((x) => (x.cluster || 'Inne') === cluster)) {
+    for (const b of cat.brands.filter((x) => (x.cluster || 'Bez kategorii') === cluster)) {
       const aka = b.aliases.length ? ` (aka ${b.aliases.join(', ')})` : ''
       lines.push(`- ${b.name}${aka}${summaries && b.summary ? ` — ${b.summary.slice(0, 160)}` : ''}`)
       if (products) {
@@ -151,5 +155,17 @@ export async function ensureBrand(companyId: string, name: string): Promise<stri
   if ((all ?? []).some((b) => b.slug === slug)) slug = `${slug}-${(all ?? []).length + 1}`
   const { data } = await db.from('brands').insert({ company_id: companyId, name: clean, slug, position: ((all ?? []).length + 1) * 10 }).select('id').single()
   if (data) await db.from('brand').insert({ company_id: companyId, brand_id: data.id })
+  return data?.id ?? null
+}
+
+/** Kategoria po nazwie (bez względu na wielkość liter); `create` zakłada brakującą na końcu listy. */
+export async function findCluster(companyId: string, name: string, create = false): Promise<string | null> {
+  const clean = name.trim().slice(0, 60)
+  if (!clean) return null
+  const { data: all } = await db.from('brand_clusters').select('id, name, position').eq('company_id', companyId)
+  const hit = (all ?? []).find((c) => c.name.toLowerCase() === clean.toLowerCase())
+  if (hit || !create) return hit?.id ?? null
+  const position = Math.max(0, ...(all ?? []).map((c) => c.position as number)) + 10
+  const { data } = await db.from('brand_clusters').insert({ company_id: companyId, name: clean, position }).select('id').single()
   return data?.id ?? null
 }

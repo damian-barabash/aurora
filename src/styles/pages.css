@@ -562,3 +562,29 @@ button.pmeta__item:hover { background: var(--fill); }
 .whatsnew__count { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #000; font-size: 13px; font-variant-numeric: tabular-nums; }
 .modal__close.is-locked { cursor: not-allowed; }
 .tag { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; background: var(--fill-2); font-size: 12px; color: var(--fg-2); white-space: nowrap; flex: none; }
+
+/* ───────── Marki i kategorie (0.3.0) ───────── */
+.bclus { display: grid; gap: 14px; margin-top: 6px; }
+.bclu { border: 1px solid var(--line); background: var(--surface); border-radius: var(--r-2xl); padding: 16px 18px; display: grid; gap: 6px; animation: rise 0.35s var(--ease); }
+.bclu--new { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; }
+.bclu--archived { margin-top: 22px; background: var(--fill); }
+.bclu__head { display: flex; align-items: center; gap: 8px; min-height: 40px; }
+.bclu__head h2 { font-size: 18px; letter-spacing: -0.02em; margin: 0; }
+.bclu__rename { max-width: 360px; }
+.bclu__empty { margin: 4px 0; font-size: 14px; }
+.brow { display: flex; align-items: center; gap: 12px; padding: 8px 6px; border-radius: var(--r-lg); transition: background 0.18s; }
+.brow:hover { background: var(--fill); }
+.brow__main { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.brow__main small { color: var(--muted); font-size: 13px; display: inline-flex; align-items: center; gap: 4px; }
+.brow__name { display: inline-flex; align-items: center; gap: 4px; font-weight: 500; width: fit-content; }
+.brow__name svg { color: var(--faint); }
+.brow__name:hover { text-decoration: underline; }
+.select.brow__move { width: 250px; flex: none; height: 38px; font-size: 14px; }
+.brow__acts { display: inline-flex; gap: 2px; }
+.side__label--row { display: flex; align-items: center; justify-content: space-between; padding-right: 4px; }
+.side__labelbtn { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; color: var(--muted); letter-spacing: 0; }
+.side__labelbtn:hover { background: var(--fill-2); color: #000; }
+@media (max-width: 720px) {
+  .brow { flex-wrap: wrap; }
+  .select.brow__move { width: 100%; order: 3; }
+}

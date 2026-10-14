@@ -1,5 +1,5 @@
 import {
-  ArrowUpRight, Bell, BookOpen, Building2, Check, ChevronDown, CircleHelp, Folder, Inbox, LayoutGrid, Library, LogOut, Megaphone, Menu as MenuIcon, MessageSquare, MoreHorizontal, PanelLeft, Paperclip, PenLine, Pin, Plug, Plus, Search, Send, Settings, SlidersHorizontal, Sparkles, Sunrise, Trash2, Users,
+  ArrowUpRight, Bell, BookOpen, Building2, Check, ChevronDown, CircleHelp, Folder, Inbox, LayoutGrid, Library, LogOut, Megaphone, Menu as MenuIcon, MessageSquare, MoreHorizontal, PanelLeft, Paperclip, PenLine, Pin, Plug, Plus, Search, Send, Settings, Settings2, Shapes, SlidersHorizontal, Sparkles, Sunrise, Trash2, Users,
 } from 'lucide-react'
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
@@ -10,7 +10,7 @@ import { Avatar, Button, cx, Empty, Field, IconBtn, Menu, MenuItem, Modal, useFe
 import { fmtWhen } from '../lib/format'
 import { leave } from '../lib/motion'
 import { api, supabase } from '../lib/supabase'
-import type { Brand, Chat, Collection, Notification } from '../lib/types'
+import type { Brand, BrandCluster, Chat, Collection, Notification } from '../lib/types'
 import { BrandMark, useBrands } from './brands'
 import { Onboarding } from './Onboarding'
 import { APP_VERSION, openWhatsNew, WhatsNew } from './WhatsNew'
@@ -25,6 +25,7 @@ interface PanelCtx {
   reloadCounts(): Promise<void>
   /** marki bieżącej firmy (także zarchiwizowane — do podpisów starych wpisów) */
   brands: Brand[]
+  clusters: BrandCluster[]
   reloadBrands(): Promise<void>
 }
 const PanelContext = createContext<PanelCtx>(null!)
@@ -48,6 +49,7 @@ export function Shell() {
   const [chats, setChats] = useState<Chat[]>([])
   const [pending, setPending] = useState(0)
   const [brands, setBrands] = useState<Brand[]>([])
+  const [clusters, setClusters] = useState<BrandCluster[]>([])
   const [drawer, setDrawer] = useState(false)
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('aurora_side') === '0')
   const [onboardingStep, setOnboardingStep] = useState<'mail' | 'claude' | null>(null)
@@ -71,8 +73,12 @@ export function Shell() {
 
   const reloadBrands = useCallback(async () => {
     if (!company) return
-    const { data } = await supabase.from('brands').select('*').eq('company_id', company.id).order('position').order('name')
+    const [{ data }, { data: cl }] = await Promise.all([
+      supabase.from('brands').select('*').eq('company_id', company.id).order('position').order('name'),
+      supabase.from('brand_clusters').select('*').eq('company_id', company.id).order('position').order('name'),
+    ])
     setBrands((data ?? []) as Brand[])
+    setClusters((cl ?? []) as BrandCluster[])
   }, [company])
 
   useEffect(() => {
@@ -98,7 +104,7 @@ export function Shell() {
     emitChanged()
   }, [params, setParams, toast])
 
-  const ctx = useMemo(() => ({ chats, reloadChats, pending, reloadCounts, brands, reloadBrands }), [chats, reloadChats, pending, reloadCounts, brands, reloadBrands])
+  const ctx = useMemo(() => ({ chats, reloadChats, pending, reloadCounts, brands, clusters, reloadBrands }), [chats, reloadChats, pending, reloadCounts, brands, clusters, reloadBrands])
 
   if (loading || !session || !profile) return <div className="boot"><Mark size={34} /></div>
 
@@ -184,6 +190,7 @@ function Sidebar({ collapsed, onCollapse }: { collapsed: boolean; onCollapse(): 
   const manage = [
     { to: '/app/integrations', icon: <Plug size={18} />, label: 'Integracje' },
     ...(canManage ? [
+      { to: '/app/brands', icon: <Shapes size={18} />, label: 'Marki i kategorie' },
       { to: '/app/team', icon: <Users size={18} />, label: 'Zespół' },
       { to: '/app/gaps', icon: <CircleHelp size={18} />, label: 'Luki w wiedzy' },
     ] : []),
@@ -337,7 +344,10 @@ function KbNav() {
   const icon = (name: string) => name === 'grid' ? <LayoutGrid size={18} /> : name === 'book' ? <BookOpen size={18} /> : <Folder size={18} />
   return (
     <>
-      <div className="side__label">Marki</div>
+      <div className="side__label side__label--row">
+        <span>Marki</span>
+        {canManage && <Link to="/app/brands" className="side__labelbtn" title="Marki i kategorie: dodaj, zmień, ułóż"><Settings2 size={15} /></Link>}
+      </div>
       <Link to="/app/kb?b=group" className={cx('subi subi--brand', onList && currentBrand === 'group' && 'is-on is-soft')}>
         <BrandMark size={22} group={group} /><span>{group}</span><i>{brandCounts.group ?? 0}</i>
       </Link>

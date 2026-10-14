@@ -13,12 +13,13 @@ const slugify = (s: string) =>
   s.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'marka'
 
 /** Nowa marka albo edycja: nazwa, klaster, skróty (po nich AI rozpoznaje markę w tekstach), strona, opis i logo. */
-export function BrandEditor({ open, onClose, brand }: { open: boolean; onClose(id?: string): void; brand?: Brand | null }) {
+export function BrandEditor({ open, onClose, brand, defaultCluster }: { open: boolean; onClose(id?: string): void; brand?: Brand | null; defaultCluster?: string | null }) {
   const company = useCompany()
-  const { all, clusters } = useBrands()
+  const { all, rows } = useBrands()
   const { fail, toast, confirm } = useFeedback()
   const nav = useNavigate()
-  const [f, setF] = useState({ name: '', cluster: '', aliases: '', website: '', summary: '' })
+  // cluster_id: '' = bez kategorii, 'new' = nowa kategoria o nazwie newCluster
+  const [f, setF] = useState({ name: '', cluster_id: '', newCluster: '', aliases: '', website: '', summary: '' })
   const [logo, setLogo] = useState<File | null>(null)
   const [preview, setPreview] = useState('')
   const [busy, setBusy] = useState(false)
@@ -28,7 +29,7 @@ export function BrandEditor({ open, onClose, brand }: { open: boolean; onClose(i
     if (!open) return
     setLogo(null)
     setF({
-      name: brand?.name ?? '', cluster: brand?.cluster ?? '', aliases: (brand?.aliases ?? []).join(', '),
+      name: brand?.name ?? '', cluster_id: brand ? brand.cluster_id ?? '' : defaultCluster ?? '', newCluster: '', aliases: (brand?.aliases ?? []).join(', '),
       website: brand?.website ?? '', summary: brand?.summary ?? '',
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -43,8 +44,20 @@ export function BrandEditor({ open, onClose, brand }: { open: boolean; onClose(i
   const save = async () => {
     setBusy(true)
     const website = f.website.trim() ? (/^https?:\/\//i.test(f.website.trim()) ? f.website.trim() : `https://${f.website.trim()}`) : null
+    let clusterId: string | null = f.cluster_id && f.cluster_id !== 'new' ? f.cluster_id : null
+    if (f.cluster_id === 'new' && f.newCluster.trim()) {
+      const name = f.newCluster.trim()
+      const same = rows.find((c) => c.name.toLowerCase() === name.toLowerCase())
+      if (same) clusterId = same.id
+      else {
+        const { data, error } = await supabase.from('brand_clusters')
+          .insert({ company_id: company.id, name, position: Math.max(0, ...rows.map((c) => c.position)) + 10 }).select('id').single()
+        if (error || !data) { setBusy(false); return fail(error?.message ?? 'error') }
+        clusterId = data.id
+      }
+    }
     const row = {
-      name: f.name.trim(), cluster: f.cluster.trim(), website, summary: f.summary.trim(),
+      name: f.name.trim(), cluster_id: clusterId, website, summary: f.summary.trim(),
       aliases: f.aliases.split(',').map((a) => a.trim()).filter(Boolean),
     }
     let id = brand?.id
@@ -119,7 +132,7 @@ export function BrandEditor({ open, onClose, brand }: { open: boolean; onClose(i
             </span>
           )}
           <Button onClick={() => onClose()}>Anuluj</Button>
-          <Button variant="primary" busy={busy} disabled={f.name.trim().length < 2} onClick={save}>{brand ? 'Zapisz' : 'Dodaj'}</Button>
+          <Button variant="primary" busy={busy} disabled={f.name.trim().length < 2 || (f.cluster_id === 'new' && !f.newCluster.trim())} onClick={save}>{brand ? 'Zapisz' : 'Dodaj'}</Button>
         </>
       }>
       <div className="form">
@@ -132,11 +145,17 @@ export function BrandEditor({ open, onClose, brand }: { open: boolean; onClose(i
         </Field>
         <div className="form__row">
           <Field label="Nazwa"><input className="input" autoFocus value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Fastline Racing Academy" /></Field>
-          <Field label="Klaster">
-            <input className="input" list="brand-clusters" value={f.cluster} onChange={(e) => setF({ ...f, cluster: e.target.value })} placeholder="Lifestyle & Motorsport" />
-            <datalist id="brand-clusters">{clusters.map((c) => <option key={c.name} value={c.name} />)}</datalist>
+          <Field label="Kategoria">
+            <select className="select" value={f.cluster_id} onChange={(e) => setF({ ...f, cluster_id: e.target.value })}>
+              <option value="">Bez kategorii</option>
+              {rows.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              <option value="new">+ Nowa kategoria…</option>
+            </select>
           </Field>
         </div>
+        {f.cluster_id === 'new' && (
+          <Field label="Nazwa nowej kategorii"><input className="input" autoFocus value={f.newCluster} onChange={(e) => setF({ ...f, newCluster: e.target.value })} placeholder="np. Lifestyle & Motorsport" /></Field>
+        )}
         <Field label="Skróty i inne nazwy" hint="Po przecinku, np. FRA, Fastline Academy. Po nich AI rozpoznaje markę w mailach i rozmowach z Claude.">
           <input className="input" value={f.aliases} onChange={(e) => setF({ ...f, aliases: e.target.value })} />
         </Field>
@@ -150,5 +169,5 @@ export function BrandEditor({ open, onClose, brand }: { open: boolean; onClose(i
 }
 
 const emptyBrand: Brand = {
-  id: '', company_id: '', name: '', slug: '', cluster: '', aliases: [], summary: '', website: null, logo_path: null, position: 0, status: 'active',
+  id: '', company_id: '', name: '', slug: '', cluster: '', cluster_id: null, aliases: [], summary: '', website: null, logo_path: null, position: 0, status: 'active',
 }

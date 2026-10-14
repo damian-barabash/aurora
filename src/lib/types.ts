@@ -28,13 +28,23 @@ export interface Brand {
   company_id: string
   name: string
   slug: string
+  /** nazwa kategorii (kopia z brand_clusters, pilnuje jej baza) */
   cluster: string
+  cluster_id: string | null
   aliases: string[]
   summary: string
   website: string | null
   logo_path: string | null
   position: number
   status: 'active' | 'archived'
+}
+
+/** Kategoria marek (np. „Lifestyle & Motorsport”). Każda firma układa je po swojemu. */
+export interface BrandCluster {
+  id: string
+  company_id: string
+  name: string
+  position: number
 }
 
 export type Visibility = 'public' | 'internal' | 'confidential'

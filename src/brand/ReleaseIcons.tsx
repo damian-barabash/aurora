@@ -30,8 +30,31 @@ function Brands({ size }: { size: number }) {
   )
 }
 
+/** 0.3.0 — marki-klocki układane na półkach kategorii; jeden klocek właśnie przenoszony na inną półkę. */
+function Categories({ size }: { size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 120 120" aria-hidden>
+      <rect x="0" y="0" width="120" height="120" rx="30" fill={INK} />
+      {/* półki */}
+      <rect x="16" y="50" width="88" height="5" rx="2.5" fill={PAPER} />
+      <rect x="16" y="92" width="88" height="5" rx="2.5" fill={PAPER} />
+      {/* marki na półkach */}
+      <rect x="20" y="30" width="18" height="20" rx="5" fill={PAPER} />
+      <rect x="42" y="30" width="18" height="20" rx="5" fill={ACCENT} />
+      <rect x="20" y="72" width="18" height="20" rx="5" fill={ACCENT} />
+      <rect x="42" y="72" width="18" height="20" rx="5" fill={PAPER} />
+      <rect x="64" y="72" width="18" height="20" rx="5" fill={PAPER} />
+      {/* przenoszona marka i jej droga */}
+      <path d="M73 46 C 92 46, 96 58, 92 66" stroke={ACCENT} strokeWidth="4" strokeLinecap="round" fill="none" />
+      <path d="M86 62 L92 69 L97 61" stroke={ACCENT} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <rect x="64" y="26" width="18" height="20" rx="5" fill={ACCENT} transform="rotate(-10 73 36)" />
+    </svg>
+  )
+}
+
 export const RELEASE_ICONS: Record<string, (p: { size: number }) => ReactElement> = {
   brands: Brands,
+  categories: Categories,
 }
 
 export function ReleaseIcon({ name, size = 96 }: { name: string; size?: number }) {

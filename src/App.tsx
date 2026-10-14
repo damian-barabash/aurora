@@ -16,6 +16,7 @@ const Files = lazy(() => import('./pages/Files'))
 const Integrations = lazy(() => import('./pages/Integrations'))
 const Social = lazy(() => import('./pages/Social'))
 const Team = lazy(() => import('./pages/Team'))
+const Brands = lazy(() => import('./pages/Brands'))
 const Gaps = lazy(() => import('./pages/Gaps'))
 const Settings = lazy(() => import('./pages/Settings'))
 
@@ -38,6 +39,7 @@ export default function App() {
         <Route path="review" element={page(<Review />)} />
         <Route path="files" element={page(<Files />)} />
         <Route path="integrations" element={page(<Integrations />)} />
+        <Route path="brands" element={page(<Brands />)} />
         <Route path="team" element={page(<Team />)} />
         <Route path="gaps" element={page(<Gaps />)} />
         <Route path="settings" element={page(<Settings />)} />

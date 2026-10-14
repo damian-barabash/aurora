@@ -1,5 +1,30 @@
 [
   {
+    "version": "0.3.0",
+    "date": "2026-10-14",
+    "icon": "categories",
+    "title": "Marki i kategorie w Twoich rękach",
+    "lead": "Strukturę firmy układa teraz administrator: kategorie, marki w nich i ich kolejność. Działa dla każdej firmy, nie tylko dla holdingu.",
+    "items": [
+      {
+        "title": "Nowa strona „Marki i kategorie”",
+        "text": "W menu Zarządzanie albo pod ikoną obok „Marki” w bazie wiedzy. Dodasz kategorię, zmienisz jej nazwę, przesuniesz wyżej lub niżej albo usuniesz — marki zostaną, tylko bez kategorii."
+      },
+      {
+        "title": "Marki przenosisz jednym kliknięciem",
+        "text": "Każdą markę przypiszesz do innej kategorii, ustawisz jej kolejność, edytujesz, zarchiwizujesz i przywrócisz z archiwum."
+      },
+      {
+        "title": "Fastline Supercars to osobna marka",
+        "text": "Fastline Supercars i Fastline Paddock Club są teraz rozdzielone. „Fastline Supercars Club” to dawna nazwa Paddock Club."
+      },
+      {
+        "title": "To samo z poziomu Claude",
+        "text": "Administrator może poprosić Claude o dodanie marki lub kategorii — Claude zrobi to dopiero po Twoim wyraźnym „tak”."
+      }
+    ]
+  },
+  {
     "version": "0.2.0",
     "date": "2026-10-14",
     "icon": "brands",
