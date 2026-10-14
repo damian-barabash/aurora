@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Page, usePanel } from '../app/Shell'
 import { useCompany } from '../app/session'
+import { useBrands } from '../app/brands'
 import { AppIcon, Mark } from '../brand/Logo'
 import { EntryEditor } from '../components/kb'
 import { StreamText } from '../components/StreamText'
@@ -10,6 +11,12 @@ import { cx, IconBtn, Menu, MenuItem, useFeedback } from '../components/ui'
 import { leave } from '../lib/motion'
 import { streamChat, supabase, type ChatSource } from '../lib/supabase'
 import { useSigned } from '../lib/useSigned'
+
+/** „Produkt · tytuł” albo „Marka · tytuł”, bez powtarzania nazwy, gdy tytuł już od niej się zaczyna. */
+const sourceLabel = (s: ChatSource) => {
+  const head = s.product ?? s.brand
+  return head && !s.title.toLowerCase().startsWith(head.toLowerCase()) ? `${head} · ${s.title}` : s.title
+}
 
 interface Msg {
   id: string
@@ -31,6 +38,9 @@ export default function ChatPage() {
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
   const [useContext, setUseContext] = useState(true)
+  const { clusters } = useBrands()
+  // marka, o którą pytamy (pusta = AI rozpozna z pytania); pamiętana między wizytami
+  const [brandFocus, setBrandFocus] = useState<string>(() => { try { return localStorage.getItem('aurora_chat_brand') ?? '' } catch { return '' } })
   const [addFor, setAddFor] = useState<string | null>(null)
   const justCreated = useRef<string | null>(null)
   const scroller = useRef<HTMLDivElement>(null)
@@ -78,7 +88,7 @@ export default function ChatPage() {
     setMessages((list) => [...list, { id: `${tmp}-u`, role: 'user', content: message, sources: [] }, { id: tmp, role: 'assistant', content: '', sources: [], pending: true }])
     const patch = (fn: (m: Msg) => Msg) => setMessages((list) => list.map((m) => (m.id === tmp ? fn(m) : m)))
     try {
-      await streamChat({ company_id: company.id, chat_id: id, message, use_context: useContext }, {
+      await streamChat({ company_id: company.id, chat_id: id, message, use_context: useContext, brand_id: brandFocus || null }, {
         meta(m) {
           if (!id) {
             justCreated.current = m.chat_id
@@ -96,7 +106,7 @@ export default function ChatPage() {
     patch((m) => ({ ...m, pending: false }))
     setBusy(false)
     reloadChats()
-  }, [busy, company.id, id, useContext, nav, reloadChats, fail])
+  }, [busy, company.id, id, useContext, brandFocus, nav, reloadChats, fail])
 
   // вопрос, переданный с главной: /app/chat?q=…
   useEffect(() => {
@@ -129,7 +139,7 @@ export default function ChatPage() {
 
   const quick = [
     { icon: <Sparkles size={18} />, label: 'Co nowego?', q: 'Co ostatnio zmieniło się w bazie wiedzy? Wymień najważniejsze.' },
-    { icon: <BookOpen size={18} />, label: 'Przegląd produktów', q: 'Zrób krótki przegląd wszystkich naszych produktów.' },
+    { icon: <BookOpen size={18} />, label: 'Przegląd marek', q: 'Zrób krótki przegląd naszych marek i ich najważniejszych produktów.' },
     { icon: <CalendarDays size={18} />, label: 'Najbliższe terminy', q: 'Jakie są najbliższe terminy i wydarzenia produktów?' },
     { icon: <PenLine size={18} />, label: 'Napisz tekst', fill: 'Napisz krótki post o produkcie ' },
   ]
@@ -153,6 +163,13 @@ export default function ChatPage() {
           title="Odpowiadaj na podstawie bazy wiedzy firmy">
           <BookOpen size={17} />Baza wiedzy
         </button>
+        {useContext && clusters.length > 0 && (
+          <select className="select composer__brand" value={brandFocus} title="O którą markę pytasz"
+            onChange={(e) => { setBrandFocus(e.target.value); try { localStorage.setItem('aurora_chat_brand', e.target.value) } catch { /* tryb prywatny */ } }}>
+            <option value="">Wszystkie marki</option>
+            {clusters.map((c) => <optgroup key={c.name} label={c.name}>{c.brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</optgroup>)}
+          </select>
+        )}
         <span className="grow" />
         <button type="button" className="composer__send" disabled={!text.trim() || busy} onClick={() => send(text)} aria-label="Wyślij">
           <ArrowUp size={20} />
@@ -213,7 +230,7 @@ export default function ChatPage() {
                     {!m.pending && m.sources?.some((s) => s.images?.some((path) => media[path])) && (
                       <div className="msg__media">
                         {m.sources.flatMap((s) => (s.images ?? []).filter((path) => media[path]).map((path) => (
-                          <Link key={path} to={s.product_id ? `/app/kb/${s.product_id}?e=${s.id}` : '/app/news'} title={`${s.product ? `${s.product} · ` : ''}${s.title}`}>
+                          <Link key={path} to={s.product_id ? `/app/kb/${s.product_id}?e=${s.id}` : `/app/kb?b=${s.brand_id ?? 'group'}`} title={`${s.product ? `${s.product} · ` : ''}${s.title}`}>
                             <img src={media[path]} alt={s.title} loading="lazy" />
                           </Link>
                         ))).slice(0, 6)}
@@ -222,10 +239,10 @@ export default function ChatPage() {
                     {!m.pending && m.sources?.length > 0 && (
                       <div className="msg__sources">
                         {m.sources.map((s) => (
-                          <Link key={s.n} to={s.product_id ? `/app/kb/${s.product_id}?e=${s.id}` : '/app/news'} className="srcchip">
+                          <Link key={s.n} to={s.product_id ? `/app/kb/${s.product_id}?e=${s.id}` : `/app/kb?b=${s.brand_id ?? 'group'}`} className="srcchip">
                             <b>{s.n}</b>
                             {s.logo && media[s.logo] && <img src={media[s.logo]} alt="" />}
-                            <span className="truncate">{s.product ? `${s.product} · ` : ''}{s.title}</span>
+                            <span className="truncate">{sourceLabel(s)}</span>
                           </Link>
                         ))}
                       </div>

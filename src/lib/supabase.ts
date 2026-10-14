@@ -35,6 +35,7 @@ const ERRORS: Record<string, string> = {
   not_in_company: 'Dostęp można dać tylko osobie z tej firmy albo moderatorowi',
   publishing_now: 'Post właśnie się publikuje — spróbuj za chwilę',
   brief_required: 'Wybierz produkt albo opisz, o czym ma być post',
+  brand_from_other_company: 'Ta marka należy do innej firmy',
   ai_empty: 'Model nie zwrócił tekstu — spróbuj ponownie',
 }
 
@@ -73,6 +74,9 @@ export interface ChatSource {
   id: string
   product_id: string | null
   product: string | null
+  /** marka źródła (null = cała grupa) */
+  brand_id?: string | null
+  brand?: string | null
   title: string
   type: string
   /** ścieżki w buckecie: logo produktu i zdjęcia przypięte do wpisu */
@@ -82,7 +86,7 @@ export interface ChatSource {
 
 /** Strumień odpowiedzi czatu (SSE). */
 export async function streamChat(
-  body: { company_id: string; chat_id?: string; message: string; use_context: boolean },
+  body: { company_id: string; chat_id?: string; message: string; use_context: boolean; brand_id?: string | null },
   on: { meta(m: { chat_id: string; sources: ChatSource[] }): void; delta(t: string): void; done(d: { gap: boolean; sources: ChatSource[] }): void },
   signal?: AbortSignal,
 ) {

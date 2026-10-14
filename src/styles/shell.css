@@ -198,3 +198,9 @@
 .subrow:hover .subrow__more, .subrow__more.is-open, .subrow__more:focus-visible { opacity: 1; }
 .subrow:hover .subi i, .subrow:focus-within .subi i { visibility: hidden; }
 @media (hover: none) { .subrow__more { opacity: 1; background: none; } .subrow .subi i { visibility: hidden; } }
+
+/* marki w menu bazy wiedzy */
+.subi--brand { gap: 10px; }
+.subi .bmark { flex: none; overflow: visible; }
+.side__sublabel { font-size: 11.5px; color: var(--faint); padding: 10px 10px 4px; }
+.side__cluster { display: grid; }

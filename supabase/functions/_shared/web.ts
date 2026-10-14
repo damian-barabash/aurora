@@ -86,6 +86,7 @@ export async function crawlStep(sourceId: string, maxPages = 2) {
       source: 'website',
       label: `${u.hostname.replace(/^www\./, '')}${u.pathname === '/' ? '' : u.pathname}`,
       sourceUser: src.created_by,
+      brandHint: src.brand_id ?? null,
       bootstrap: true,
       text: `Company website page. Title: ${title}\nURL: ${url}\n\n${text}`,
     }).catch(() => null)

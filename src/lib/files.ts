@@ -85,14 +85,14 @@ export async function toJpeg(file: File, maxSide = 2160, quality = 0.9): Promise
 }
 
 /** Plik trafia do prywatnego bucketu: {firma}/{produkt|common}/{losowy id}-{nazwa}. Obrazy zawsze jako WebP. */
-export async function uploadFile(companyId: string, original: File, opts: { productId?: string | null; entryId?: string | null; kind?: FileRow['kind'] } = {}): Promise<FileRow> {
+export async function uploadFile(companyId: string, original: File, opts: { productId?: string | null; entryId?: string | null; brandId?: string | null; kind?: FileRow['kind'] } = {}): Promise<FileRow> {
   const file = await toWebp(original)
   const path = `${companyId}/${opts.productId ?? 'common'}/${crypto.randomUUID().slice(0, 8)}-${safe(file.name)}`
   const { error } = await supabase.storage.from('media').upload(path, file, { contentType: file.type || undefined })
   if (error) throw new Error(error.message)
   const kind = opts.kind ?? (isImage({ mime: file.type, name: file.name }) ? 'image' : 'document')
   const { data, error: rowError } = await supabase.from('files').insert({
-    company_id: companyId, product_id: opts.productId ?? null, entry_id: opts.entryId ?? null, kind, name: file.name, path, mime: file.type || null, size: file.size,
+    company_id: companyId, product_id: opts.productId ?? null, entry_id: opts.entryId ?? null, brand_id: opts.brandId ?? null, kind, name: file.name, path, mime: file.type || null, size: file.size,
   }).select('*').single()
   if (rowError || !data) throw new Error(rowError?.message ?? 'insert failed')
   return data as FileRow

@@ -6,7 +6,8 @@ import { usePeople } from '../app/people'
 import { useCompany, useQuery, useSession } from '../app/session'
 import { FileGrid } from '../components/FileGrid'
 import { HistoryList } from '../components/History'
-import { EntryEditor, ImportText, ProductEditor, ProductIcon, SourceTag, StateBadge, useTypeLabels } from '../components/kb'
+import { EntryEditor, ImportText, ProductEditor, ProductIcon, SourceTag, StateBadge, useTypeLabels, VisibilityBadge } from '../components/kb'
+import { BrandMark, useBrands } from '../app/brands'
 import { Markdown } from '../components/Markdown'
 import { Button, cx, Empty, IconBtn, Loading, Menu, MenuItem, Tabs, useFeedback } from '../components/ui'
 import { fmtDate, fmtWhen } from '../lib/format'
@@ -26,6 +27,7 @@ export default function ProductPage() {
   const company = useCompany()
   const { profile, canManage } = useSession()
   const { names, members } = usePeople()
+  const { byId: brandById, group } = useBrands()
   const types = useTypeLabels()
   const { fail, toast, confirm } = useFeedback()
   const [tab, setTab] = useState<Tab>('entries')
@@ -69,6 +71,7 @@ export default function ProductPage() {
   if (!p) return <Page crumb="Baza wiedzy"><Empty title="Nie znaleziono produktu" action={<Link className="btn btn--ghost" to="/app/kb">Do bazy wiedzy</Link>} /></Page>
 
   const today = new Date().toISOString().slice(0, 10)
+  const brand = p.brand_id ? brandById.get(p.brand_id) ?? null : null
   const expired = (e: Entry) => e.status === 'review' || (!!e.effective_to && e.effective_to < today)
 
   const changeLogo = async (file: File) => {
@@ -122,7 +125,7 @@ export default function ProductPage() {
   }
 
   return (
-    <Page crumb={<><Link to="/app/kb">Baza wiedzy</Link>/<b>{p.name}</b></>}>
+    <Page crumb={<><Link to="/app/kb">Baza wiedzy</Link>/<Link to={`/app/kb?b=${p.brand_id ?? 'group'}`}>{brand?.name ?? group}</Link>/<b>{p.name}</b></>}>
       <header className="phead">
         <button type="button" className="phead__logo" title="Zmień logo produktu" onClick={() => logoPicker.current?.click()}>
           <ProductIcon icon={p.icon} logo={media[p.logo_path ?? '']} accent size={64} />
@@ -130,7 +133,10 @@ export default function ProductPage() {
         </button>
         <input ref={logoPicker} type="file" hidden accept="image/*" onChange={(e) => { if (e.target.files?.[0]) changeLogo(e.target.files[0]); e.target.value = '' }} />
         <div className="phead__main">
-          <div className="phead__badges"><StateBadge state={p.state} />{p.kind && <span className="muted">{p.kind}</span>}</div>
+          <div className="phead__badges">
+            <Link to={`/app/kb?b=${p.brand_id ?? 'group'}`} className="phead__brand"><BrandMark brand={brand} group={group} size={22} />{brand?.name ?? group}</Link>
+            <StateBadge state={p.state} />{p.kind && <span className="muted">{p.kind}</span>}
+          </div>
           <h1>{p.name}</h1>
           {p.summary && <p>{p.summary}</p>}
         </div>
@@ -201,7 +207,7 @@ export default function ProductPage() {
             {list.map((e) => (
               <article key={e.id} id={`e-${e.id}`} data-id={e.id} className={cx('entry', highlight === e.id && 'is-hit', expired(e) && 'is-stale')}>
                 <div className="entry__main">
-                  <h4>{e.title}{e.importance >= 2 && <span className="entry__imp">{e.importance === 3 ? 'Pilne' : 'Ważne'}</span>}</h4>
+                  <h4>{e.title}{e.importance >= 2 && <span className="entry__imp">{e.importance === 3 ? 'Pilne' : 'Ważne'}</span>}<VisibilityBadge value={e.visibility} /></h4>
                   {e.body && <p>{e.body}</p>}
                   {photosOf[e.id] && (
                     <div className="entry__photos">

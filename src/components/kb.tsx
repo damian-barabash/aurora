@@ -1,12 +1,14 @@
-import { Bot, Calendar, CircleCheck, Clock, FileText, Globe, ImagePlus, Mail, MessageSquare, PenLine, X } from 'lucide-react'
+import { Bot, Calendar, CircleCheck, Clock, Copy, FileText, Globe, ImagePlus, Inbox, Lock, Mail, MessageSquare, PenLine, X } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { Link } from 'react-router-dom'
+import { useBrands } from '../app/brands'
 import { emitChanged } from '../app/Shell'
 import { useSession } from '../app/session'
 import { BRAND_ICONS, BrandIcon } from '../brand/Logo'
 import { isImage, removeFile, setProductLogo, uploadFile } from '../lib/files'
 import { api, supabase } from '../lib/supabase'
 import { useSigned } from '../lib/useSigned'
-import type { Collection, Entry, EntryType, FileRow, Product, ProductState, Source } from '../lib/types'
+import type { Collection, Entry, EntryType, FileRow, Product, ProductState, Source, Visibility } from '../lib/types'
 import { Badge, Button, cx, Field, Modal, Segmented, Toggle, useFeedback } from './ui'
 
 export function useTypeLabels(): Record<EntryType, string> {
@@ -44,6 +46,32 @@ export function SourceTag({ source, label }: { source: Source; label?: string | 
     website: 'Strona', file: 'Plik', chat: 'Czat',
   }
   return <span className="srctag" title={label ?? undefined}>{SOURCE_ICON[source]}{label || names[source]}</span>
+}
+
+/** Wybór marki: cała grupa albo marka z klastra. Pusta wartość = cała grupa. */
+export function BrandSelect({ value, onChange, groupLabel }: { value: string | null; onChange(id: string | null): void; groupLabel?: string }) {
+  const { clusters, group } = useBrands()
+  return (
+    <select className="select" value={value ?? ''} onChange={(e) => onChange(e.target.value || null)}>
+      <option value="">{groupLabel ?? `${group} — cała grupa`}</option>
+      {clusters.map((c) => (
+        <optgroup key={c.name} label={c.name}>
+          {c.brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+        </optgroup>
+      ))}
+    </select>
+  )
+}
+
+export const VISIBILITY: Record<Visibility, { label: string; hint: string }> = {
+  public: { label: 'Publiczne', hint: 'Można mówić klientom: oferta, ceny, terminy' },
+  internal: { label: 'Wewnętrzne', hint: 'Wiedza zespołu: procesy, role, zasady' },
+  confidential: { label: 'Poufne', hint: 'Strategia i plany przed ogłoszeniem — widzą tylko administratorzy' },
+}
+
+export function VisibilityBadge({ value }: { value?: Visibility | null }) {
+  if (value !== 'confidential') return null
+  return <span className="vis" title={VISIBILITY.confidential.hint}><Lock size={12} />Poufne</span>
 }
 
 /** Znak produktu: własne logo, a gdy go nie ma — jeden z symboli marki. */
@@ -90,17 +118,22 @@ function PhotoField({ saved, pending, onAdd, onRemoveSaved, onRemovePending }: {
 
 // ───────── редактор записи ─────────
 
-export function EntryEditor({ open, onClose, entry, productId, preset }: {
+export function EntryEditor({ open, onClose, entry, productId, brandId, preset }: {
   open: boolean
   onClose(saved?: boolean): void
   entry?: Entry | null
   productId?: string | null
+  /** marka nowego wpisu bez produktu; `null` = cała grupa */
+  brandId?: string | null
   preset?: Partial<Entry>
 }) {
   const types = useTypeLabels()
-  const { company } = useSession()
+  const { company, canManage } = useSession()
   const { fail, toast } = useFeedback()
-  const blank = { type: 'fact' as EntryType, title: '', body: '', effective_from: '', effective_to: '', importance: 1, pinned: false }
+  const blank = {
+    type: 'fact' as EntryType, title: '', body: '', effective_from: '', effective_to: '', importance: 1, pinned: false,
+    brand_id: null as string | null, visibility: 'internal' as Visibility,
+  }
   const [f, setF] = useState(blank)
   const [busy, setBusy] = useState(false)
   const [photos, setPhotos] = useState<FileRow[]>([])
@@ -115,6 +148,7 @@ export function EntryEditor({ open, onClose, entry, productId, preset }: {
       type: src?.type ?? blank.type, title: src?.title ?? '', body: src?.body ?? '',
       effective_from: src?.effective_from ?? '', effective_to: src?.effective_to ?? '',
       importance: src?.importance ?? 1, pinned: src?.pinned ?? false,
+      brand_id: entry ? entry.brand_id : src?.brand_id ?? brandId ?? null, visibility: src?.visibility ?? 'internal',
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, entry?.id])
@@ -122,9 +156,12 @@ export function EntryEditor({ open, onClose, entry, productId, preset }: {
   const save = async () => {
     if (!company) return
     setBusy(true)
+    const withProduct = !!(entry?.product_id ?? productId)
     const row = {
       type: f.type, title: f.title.trim(), body: f.body.trim(), importance: f.importance, pinned: f.pinned,
-      effective_from: f.effective_from || null, effective_to: f.effective_to || null,
+      effective_from: f.effective_from || null, effective_to: f.effective_to || null, visibility: f.visibility,
+      // wpis z produktem dziedziczy markę produktu (pilnuje tego baza)
+      ...(withProduct ? {} : { brand_id: f.brand_id }),
     }
     const q = entry
       ? supabase.from('entries').update({ ...row, status: 'current', source: 'manual', source_label: null, verified_at: new Date().toISOString() }).eq('id', entry.id).select('id').single()
@@ -150,6 +187,11 @@ export function EntryEditor({ open, onClose, entry, productId, preset }: {
       title={entry ? 'Edytuj wpis' : isNews ? 'Nowy komunikat' : 'Nowy wpis'}
       footer={<><Button onClick={() => onClose()}>Anuluj</Button><Button variant="primary" busy={busy} disabled={!f.title.trim()} onClick={save}>Zapisz</Button></>}>
       <div className="form">
+        {!(entry?.product_id ?? productId) && (
+          <Field label="Czego dotyczy" hint="Marka albo cała grupa. Wpis o produkcie dodaj na stronie produktu.">
+            <BrandSelect value={f.brand_id} onChange={(brand_id) => setF({ ...f, brand_id })} />
+          </Field>
+        )}
         <Field label="Typ">
           <div className="chips">
             {(['fact', 'price', 'date', 'news', 'announcement', 'faq', 'link'] as EntryType[]).map((k) => (
@@ -174,6 +216,11 @@ export function EntryEditor({ open, onClose, entry, productId, preset }: {
             { value: '2', label: 'Ważne' }, { value: '3', label: 'Pilne' },
           ]} />
         </Field>
+        <Field label="Widoczność" hint={VISIBILITY[f.visibility].hint}>
+          <Segmented value={f.visibility} onChange={(visibility) => setF({ ...f, visibility })} options={
+            (['public', 'internal', ...(canManage ? ['confidential'] : [])] as Visibility[]).map((v) => ({ value: v, label: VISIBILITY[v].label }))
+          } />
+        </Field>
         <Field label="Zdjęcia" hint="AI pokaże je w czacie, gdy powoła się na ten wpis. Każdy obraz zapisujemy jako WebP.">
           <PhotoField saved={photos} pending={pending} onAdd={(files) => setPending([...pending, ...files.filter((x) => isImage({ mime: x.type, name: x.name }))])}
             onRemovePending={(i) => setPending(pending.filter((_, j) => j !== i))}
@@ -188,16 +235,17 @@ export function EntryEditor({ open, onClose, entry, productId, preset }: {
 
 // ───────── редактор продукта ─────────
 
-export function ProductEditor({ open, onClose, product, collections, defaultCollection }: {
+export function ProductEditor({ open, onClose, product, collections, defaultCollection, defaultBrand }: {
   open: boolean
   onClose(id?: string): void
   product?: Product | null
   collections: Collection[]
   defaultCollection?: string | null
+  defaultBrand?: string | null
 }) {
   const { company } = useSession()
   const { fail, toast } = useFeedback()
-  const [f, setF] = useState({ name: '', kind: '', icon: 'spark', summary: '', description: '', collection_id: '' })
+  const [f, setF] = useState({ name: '', kind: '', icon: 'spark', summary: '', description: '', collection_id: '', brand_id: null as string | null })
   const [busy, setBusy] = useState(false)
   // logo: undefined = bez zmian, File = nowe, null = usunąć
   const [logo, setLogo] = useState<File | null | undefined>(undefined)
@@ -216,6 +264,7 @@ export function ProductEditor({ open, onClose, product, collections, defaultColl
     setF({
       name: product?.name ?? '', kind: product?.kind ?? '', icon: product?.icon ?? BRAND_ICONS[Math.floor(Math.random() * 6)],
       summary: product?.summary ?? '', description: product?.description ?? '', collection_id: product?.collection_id ?? defaultCollection ?? '',
+      brand_id: product ? product.brand_id : defaultBrand ?? null,
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, product?.id])
@@ -259,12 +308,17 @@ export function ProductEditor({ open, onClose, product, collections, defaultColl
           <Field label="Nazwa"><input className="input" autoFocus value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
           <Field label="Rodzaj"><input className="input" value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value })} placeholder="Usługa, kurs, wydarzenie…" /></Field>
         </div>
-        <Field label="Kolekcja">
-          <select className="select" value={f.collection_id} onChange={(e) => setF({ ...f, collection_id: e.target.value })}>
-            <option value="">Bez kolekcji</option>
-            {collections.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </Field>
+        <div className="form__row">
+          <Field label="Marka" hint="Wszystkie wpisy produktu należą do tej marki">
+            <BrandSelect value={f.brand_id} onChange={(brand_id) => setF({ ...f, brand_id })} groupLabel="Cała grupa (bez marki)" />
+          </Field>
+          <Field label="Kolekcja">
+            <select className="select" value={f.collection_id} onChange={(e) => setF({ ...f, collection_id: e.target.value })}>
+              <option value="">Bez kolekcji</option>
+              {collections.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </Field>
+        </div>
         <Field label="Krótko" hint="Jedno zdanie — widoczne na karcie">
           <input className="input" value={f.summary} maxLength={200} onChange={(e) => setF({ ...f, summary: e.target.value })} />
         </Field>
@@ -278,23 +332,59 @@ export function ProductEditor({ open, onClose, product, collections, defaultColl
 
 // ───────── импорт: текст → факты ─────────
 
-export function ImportText({ open, onClose, productId }: { open: boolean; onClose(): void; productId?: string | null }) {
+export interface IngestItem {
+  title: string
+  outcome: 'applied' | 'proposed' | 'duplicate' | 'personal' | 'past' | 'empty'
+  where: string
+  note?: string
+  existing?: { id: string; title: string; where: string }
+}
+
+const OUTCOME: Record<IngestItem['outcome'], { label: string; icon: ReactNode }> = {
+  applied: { label: 'Dodano', icon: <CircleCheck size={15} /> },
+  proposed: { label: 'Do sprawdzenia', icon: <Inbox size={15} /> },
+  duplicate: { label: 'Już jest w bazie', icon: <Copy size={15} /> },
+  personal: { label: 'Pominięto: dane osobowe', icon: <Lock size={15} /> },
+  past: { label: 'Pominięto: już minęło', icon: <Clock size={15} /> },
+  empty: { label: 'Brak wiedzy w tekście', icon: <X size={15} /> },
+}
+
+/** Co stało się z każdym faktem: gdzie trafił, a jeśli nie trafił — dlaczego i z którym wpisem się pokrywa. */
+export function IngestReport({ items }: { items: IngestItem[] }) {
+  return (
+    <ul className="ireport">
+      {items.map((r, i) => (
+        <li key={i} className={`ireport__item is-${r.outcome}`}>
+          <span className="ireport__state">{OUTCOME[r.outcome].icon}{OUTCOME[r.outcome].label}</span>
+          {r.title && <b>{r.title}</b>}
+          {r.where && <small>{r.where}</small>}
+          {r.existing && <small>{r.outcome === 'duplicate' ? 'Taki sam wpis' : 'Porównaj z'}: „{r.existing.title}” ({r.existing.where})</small>}
+          {r.note && <small className="ireport__note">{r.note}</small>}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+export function ImportText({ open, onClose, productId, brandId }: { open: boolean; onClose(): void; productId?: string | null; brandId?: string | null }) {
   const { company } = useSession()
   const { fail } = useFeedback()
   const [text, setText] = useState('')
+  const [brand, setBrand] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [result, setResult] = useState<{ applied: number; proposed: number; titles: string[] } | null>(null)
+  const [result, setResult] = useState<{ applied: number; proposed: number; titles: string[]; items?: IngestItem[] } | null>(null)
   useEffect(() => {
     if (open) {
       setText('')
       setResult(null)
+      setBrand(brandId ?? null)
     }
-  }, [open])
+  }, [open, brandId])
   const run = async () => {
     if (!company) return
     setBusy(true)
     try {
-      setResult(await api('import_text', { company_id: company.id, text, product_id: productId ?? null, label: 'Import tekstu' }))
+      setResult(await api('import_text', { company_id: company.id, text, product_id: productId ?? null, brand_id: brand, label: 'Import tekstu' }))
       emitChanged()
     } catch (e) {
       fail(e)
@@ -303,7 +393,7 @@ export function ImportText({ open, onClose, productId }: { open: boolean; onClos
   }
   return (
     <Modal open={open} onClose={onClose} width={640} title="Wklej tekst — AI rozłoży go na fakty"
-      subtitle={!result && 'Oferta, cennik, opis ze strony, notatki ze spotkania. Prywatne i niepotwierdzone jest odrzucane.'}
+      subtitle={!result && 'Oferta, cennik, opis ze strony, notatki ze spotkania. Każdy fakt trafi do swojej marki, nawet jeśli tekst miesza kilka marek.'}
       footer={result
         ? <Button variant="primary" onClick={onClose}>Gotowe</Button>
         : <><Button onClick={onClose}>Anuluj</Button><Button variant="primary" busy={busy} disabled={text.trim().length < 40} onClick={run}>{busy ? 'Czytam…' : 'Analizuj'}</Button></>}>
@@ -313,11 +403,20 @@ export function ImportText({ open, onClose, productId }: { open: boolean; onClos
             <div><b>{result.applied}</b><span>dodano do bazy</span></div>
             <div><b>{result.proposed}</b><span>czeka na sprawdzenie</span></div>
           </div>
-          {result.titles.length > 0 && <ul>{result.titles.map((x, i) => <li key={i}>{x}</li>)}</ul>}
-          {!result.applied && !result.proposed && <p className="muted">Nie znaleziono nowych faktów: wszystko już jest w bazie albo tekst nie dotyczy produktów.</p>}
+          {result.items?.length
+            ? <IngestReport items={result.items} />
+            : !result.applied && !result.proposed && <p className="muted">Nie znaleziono nowych faktów: wszystko już jest w bazie albo tekst nie zawiera wiedzy firmowej.</p>}
+          {result.proposed > 0 && <Link to="/app/review" className="btn btn--ghost" onClick={onClose}><Inbox size={17} /><span>Otwórz „Do sprawdzenia”</span></Link>}
         </div>
       ) : (
-        <textarea className="textarea" rows={12} autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="Wklej tutaj tekst…" />
+        <div className="form">
+          {!productId && (
+            <Field label="Marka" hint="Podpowiedź dla AI. Fakty o innej marce i tak trafią tam, gdzie należą.">
+              <BrandSelect value={brand} onChange={setBrand} groupLabel="Rozpoznaj automatycznie" />
+            </Field>
+          )}
+          <textarea className="textarea" rows={12} autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="Wklej tutaj tekst…" />
+        </div>
       )}
     </Modal>
   )

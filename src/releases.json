@@ -1,0 +1,35 @@
+[
+  {
+    "version": "0.2.0",
+    "date": "2026-10-14",
+    "icon": "brands",
+    "title": "Grupa, marki i produkty",
+    "lead": "AURORA zna teraz strukturę GREYWOLF GROUP: firma → marki → produkty. Każda informacja trafia tam, gdzie należy.",
+    "items": [
+      {
+        "title": "Każda marka ma swoje miejsce",
+        "text": "Fastline Racing Academy, Fastline InfinitiQ, Heels on the Track i pozostałe marki mają własne produkty, stronę WWW, strategię, ton i identyfikację. Wiedza wspólna dla wszystkich leży na poziomie grupy."
+      },
+      {
+        "title": "Fakty nie mieszają się między markami",
+        "text": "AI sprawdza osobno każdy fakt z poczty, importu i Claude i sama przenosi go do właściwej marki. Wiedzę dodaną 13–14 października rozłożyliśmy już na marki i produkty."
+      },
+      {
+        "title": "Strategia nie jest już blokowana",
+        "text": "Role, plany, decyzje i koncepcje to wiedza firmy, a nie dane prywatne. Wpisy poufne widzą tylko administratorzy. Odrzucane są wyłącznie dane osobowe."
+      },
+      {
+        "title": "Jasna odpowiedź przy każdym fakcie",
+        "text": "Po imporcie i w Claude widać, co się stało: dodano (gdzie), czeka na sprawdzenie (dlaczego) albo już jest w bazie (który wpis)."
+      },
+      {
+        "title": "Sprawdzanie hurtem",
+        "text": "W „Do sprawdzenia” zaznaczysz kilka pozycji albo zatwierdzisz całą paczkę naraz, a przy zatwierdzaniu poprawisz markę i produkt."
+      },
+      {
+        "title": "Czat lepiej rozumie pytania",
+        "text": "Rozpoznaje markę i produkt w pytaniu, pamięta temat przy dopytaniach, nie miesza faktów różnych marek i pisze tonem właściwej marki."
+      }
+    ]
+  }
+]

@@ -59,8 +59,12 @@ const actions: Record<string, (me: Me, b: Body) => Promise<unknown>> = {
 
   async delete_company(me, b) {
     requireModerator(me)
-    const { data: files } = await db.from('files').select('path').eq('company_id', b.company_id)
-    if (files?.length) await db.storage.from('media').remove(files.map((f) => f.path))
+    const [{ data: files }, { data: brands }] = await Promise.all([
+      db.from('files').select('path').eq('company_id', b.company_id),
+      db.from('brands').select('logo_path').eq('company_id', b.company_id).not('logo_path', 'is', null),
+    ])
+    const media = [...(files ?? []).map((f) => f.path), ...(brands ?? []).map((x) => x.logo_path as string)]
+    if (media.length) await db.storage.from('media').remove(media)
     const { data: posts } = await db.from('social_posts').select('media').eq('company_id', b.company_id)
     const social = (posts ?? []).flatMap((p) => (p.media as { path: string }[]).map((m) => m.path))
     if (social.length) await db.storage.from('social').remove(social)
@@ -268,22 +272,26 @@ const actions: Record<string, (me: Me, b: Body) => Promise<unknown>> = {
     const text = String(b.text ?? '')
     if (text.trim().length < 40) throw new HttpError(400, 'text_too_short')
     let hint: string | null = null
+    let brandHint: string | null = b.brand_id ? String(b.brand_id) : null
     if (b.product_id) {
-      const { data: p } = await db.from('products').select('name').eq('id', b.product_id).eq('company_id', b.company_id).maybeSingle()
+      const { data: p } = await db.from('products').select('name, brand_id').eq('id', b.product_id).eq('company_id', b.company_id).maybeSingle()
       hint = p?.name ?? null
+      brandHint = p?.brand_id ?? brandHint
     }
     const chunks: string[] = []
     for (let i = 0; i < text.length && chunks.length < 4; i += 8000) chunks.push(text.slice(i, i + 8500))
-    const total = { applied: 0, proposed: 0, skipped: 0, titles: [] as string[] }
+    const batchId = crypto.randomUUID()
+    const total = { applied: 0, proposed: 0, skipped: 0, titles: [] as string[], items: [] as unknown[], batch_id: batchId }
     for (const chunk of chunks) {
       const res = await ingestText({
         companyId: b.company_id, source: 'file', label: String(b.label ?? 'Import tekstu').slice(0, 120),
-        sourceUser: me.id, text: chunk, bootstrap: true, trusted: true, productHint: hint,
+        sourceUser: me.id, text: chunk, bootstrap: true, trusted: true, productHint: hint, brandHint, batchId,
       })
       total.applied += res.applied
       total.proposed += res.proposed
       total.skipped += res.skipped
       total.titles.push(...res.titles)
+      total.items.push(...res.items.filter((x) => x.outcome !== 'empty'))
     }
     return total
   },
@@ -313,7 +321,7 @@ const actions: Record<string, (me: Me, b: Body) => Promise<unknown>> = {
       text = stripHtml(await blob.text())
     } else throw new HttpError(400, 'unsupported_file')
     if (text.trim().length < 40) throw new HttpError(400, 'no_text_in_file')
-    return actions.import_text(me, { company_id: file.company_id, text, label: file.name, product_id: file.product_id })
+    return actions.import_text(me, { company_id: file.company_id, text, label: file.name, product_id: file.product_id, brand_id: file.brand_id })
   },
 
   async import_site(me, b) {
@@ -325,11 +333,13 @@ const actions: Record<string, (me: Me, b: Body) => Promise<unknown>> = {
       throw new HttpError(400, 'bad_url')
     }
     const { data: src, error } = await db.from('web_sources').upsert(
-      { company_id: b.company_id, url, status: 'queued', created_by: me.id, last_error: null },
+      { company_id: b.company_id, url, status: 'queued', created_by: me.id, last_error: null, brand_id: b.brand_id || null },
       { onConflict: 'company_id,url' },
     ).select('id').single()
     if (error) throw new HttpError(400, error.message)
-    await db.from('companies').update({ website: url }).eq('id', b.company_id).is('website', null)
+    // strona marki zapisuje się przy marce, strona bez marki — przy firmie
+    if (b.brand_id) await db.from('brands').update({ website: url }).eq('id', b.brand_id).eq('company_id', b.company_id).is('website', null)
+    else await db.from('companies').update({ website: url }).eq('id', b.company_id).is('website', null)
     EdgeRuntime.waitUntil((async () => {
       await startCrawl(src.id)
       await crawlStep(src.id, 3)
@@ -348,8 +358,33 @@ const actions: Record<string, (me: Me, b: Body) => Promise<unknown>> = {
     if (!p) throw new HttpError(404, 'not_found')
     const role = await requireMember(me, p.company_id)
     if (role === 'member' && p.source_user !== me.id) throw new HttpError(403, 'forbidden')
-    const entryId = await applyProposal(b.id, me.id, b.edits)
+    const entryId = await applyProposal(b.id, me.id, b.edits ?? {})
     return { entry_id: entryId }
+  },
+
+  /** Decyzja hurtowa: zaznaczone propozycje albo cała paczka z jednego importu. */
+  async proposal_bulk(me, b) {
+    const decision = b.decision === 'apply' ? 'apply' : 'reject'
+    let ids: string[] = (Array.isArray(b.ids) ? b.ids : []).map(String)
+    if (b.batch_id) {
+      const { data } = await db.from('proposals').select('id').eq('company_id', b.company_id).eq('batch_id', b.batch_id).eq('status', 'pending')
+      ids = [...ids, ...(data ?? []).map((x) => x.id)]
+    }
+    ids = [...new Set(ids)].slice(0, 200)
+    const { data: rows } = await db.from('proposals').select('id, company_id, source_user, entry_id, status').in('id', ids.length ? ids : ['00000000-0000-0000-0000-000000000000'])
+    let done = 0
+    for (const p of rows ?? []) {
+      if (p.status !== 'pending') continue
+      const role = await requireMember(me, p.company_id)
+      if (role === 'member' && p.source_user !== me.id) continue
+      if (decision === 'apply') await applyProposal(p.id, me.id, b.edits ?? {})
+      else {
+        await db.from('proposals').update({ status: 'rejected', resolved_by: me.id, resolved_at: new Date().toISOString() }).eq('id', p.id)
+        if (p.entry_id) await db.from('entries').update({ verified_at: new Date().toISOString() }).eq('id', p.entry_id)
+      }
+      done++
+    }
+    return { done }
   },
 
   async proposal_reject(me, b) {

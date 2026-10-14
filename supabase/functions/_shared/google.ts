@@ -2,6 +2,7 @@
 
 import { db, decrypt, encrypt, FUNCTIONS_URL, getSetting, sha256, today } from './core.ts'
 import { chatJSON, embed, toVector } from './ai.ts'
+import { findProduct, loadCatalog, resolveBrand } from './brands.ts'
 import { embedEntries, ingestText } from './ingest.ts'
 
 export const GOOGLE_SCOPES = [
@@ -130,10 +131,11 @@ For every event return its kind:
 - "internal": routine internal meetings — statuses, stand-ups, weekly syncs, 1:1s, calls, interviews, reviews.
 - "private": personal life — doctor, family, holidays of the person, private reminders.
 - "unsure": cannot tell.
-"product": the exact name from PRODUCTS when the event clearly belongs to one (match by full name, part of the name, the abbreviation in brackets, or an obvious synonym / location / theme from the summary); otherwise null. Do not force a product.
+"brand": the exact brand name from BRANDS the event belongs to (by brand name, alias, product, calendar name or theme); "GROUP" when it concerns the whole holding or you cannot tell.
+"product": the exact name from the PRODUCTS of that brand when the event clearly belongs to one (match by full name, part of the name, the abbreviation in brackets, or an obvious synonym / location / theme from the summary); otherwise null. Do not force a product.
 "title": a clear title for the team in Polish. Keep proper names exactly (WEC, Monza, Barcelona). Expand an abbreviation only when you are certain; fix letter case ("WEC monza" → "WEC Monza").
 "note": one short Polish sentence saying what this is, only if you actually know (e.g. what the abbreviation stands for); otherwise "".
-Return ONLY JSON: {"events":[{"n":1,"kind":"business","product":null,"title":"","note":""}]}`
+Return ONLY JSON: {"events":[{"n":1,"kind":"business","brand":"GROUP","product":null,"title":"","note":""}]}`
 
 const acronym = (name: string) => name.split(/[\s\-]+/).filter((w) => /^\p{L}/u.test(w)).map((w) => w[0]).join('').toUpperCase()
 const plDate = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
@@ -186,27 +188,25 @@ async function syncCalendar(it: Integration, token: string, who: string): Promis
   const fresh = live.filter((e) => !knownSet.has(keyOf(e))).slice(0, 30)
   if (!fresh.length) return out
 
-  const [{ data: company }, { data: products }] = await Promise.all([
-    db.from('companies').select('name, settings').eq('id', it.company_id).single(),
-    db.from('products').select('id, name, summary').eq('company_id', it.company_id).neq('status', 'archived'),
-  ])
+  const cat = await loadCatalog(it.company_id)
+  if (!cat) return out
+  const company = cat.company
   const day = (x: { date?: string; dateTime?: string } | undefined) => (x?.date ?? x?.dateTime ?? '').slice(0, 10)
   const user = [
     `TODAY: ${today()}`,
-    `COMPANY: ${company?.name}`,
-    `PRODUCTS:\n${(products ?? []).map((p) => `- ${p.name} [${acronym(p.name)}]${p.summary ? ` — ${p.summary.slice(0, 140)}` : ''}`).join('\n') || '(none)'}`,
+    `HOLDING: ${company.name}`,
+    `BRANDS AND PRODUCTS:\n${cat.brands.map((b) => `- ${b.name}${b.aliases.length ? ` (aka ${b.aliases.join(', ')})` : ''}\n${cat.products.filter((p) => p.brand_id === b.id).map((p) => `    • ${p.name} [${acronym(p.name)}]${p.summary ? ` — ${p.summary.slice(0, 120)}` : ''}`).join('\n')}`).join('\n') || '(none)'}`,
     `EVENTS:\n${fresh.map((e, i) => {
       const desc = e.description ? ` | opis: ${stripHtml(String(e.description)).slice(0, 240)}` : ''
       return `${i + 1}. "${e.summary}" | ${day(e.start)} → ${day(e.end)} | kalendarz: ${e._calendar ?? 'główny'}${e._recurring ? ' | cykliczne' : ''}` +
         `${e.location ? ` | miejsce: ${String(e.location).slice(0, 80)}` : ''}${e.attendees ? ` | uczestnicy: ${e.attendees.length}` : ''}${desc}`
     }).join('\n')}`,
   ].join('\n\n')
-  const parsed = await chatJSON<{ events: { n: number; kind: string; product: string | null; title: string; note: string }[] }>(CAL_SYSTEM, user, 2400)
+  const parsed = await chatJSON<{ events: { n: number; kind: string; brand?: string | null; product: string | null; title: string; note: string }[] }>(CAL_SYSTEM, user, 2400)
   const verdicts = new Map((parsed?.events ?? []).map((v) => [Number(v.n), v]))
   if (!verdicts.size) return out // model nie odpowiedział: spróbujemy przy następnym przebiegu
 
-  const productByName = new Map((products ?? []).map((p) => [p.name.trim().toLowerCase(), p.id as string]))
-  const autoApply = company?.settings?.auto_apply !== false
+  const autoApply = company.settings?.auto_apply !== false
   const touched: string[] = []
   for (const [i, e] of fresh.entries()) {
     const v = verdicts.get(i + 1)
@@ -226,7 +226,11 @@ async function syncCalendar(it: Integration, token: string, who: string): Promis
         v?.note ? String(v.note).slice(0, 240) : '',
         e.description ? stripHtml(String(e.description)).slice(0, 400) : '',
       ].filter(Boolean).join(' ')
-      const productId = v?.product ? productByName.get(String(v.product).trim().toLowerCase()) ?? null : null
+      const named = resolveBrand(cat, v?.brand)
+      let brandId: string | null = named && !('unknown' in named) ? named.id : null
+      const product = v?.product ? findProduct(cat, String(v.product), brandId ?? undefined) : null
+      const productId = product?.id ?? null
+      if (product?.brand_id) brandId = product.brand_id
       const label = `Kalendarz${e._calendar ? ` „${e._calendar}”` : ''} · ${who}`
       const fields = { type: 'date', title, body, effective_from: start, effective_to: end, importance: 1 }
       const meta = { event_id: e.id, calendar: e._calendar ?? 'primary' }
@@ -236,7 +240,7 @@ async function syncCalendar(it: Integration, token: string, who: string): Promis
       if (linked?.length) {
         // termin lub nazwa zmieniły się w kalendarzu; wpisu poprawionego ręcznie nie ruszamy
         if (linked[0].source === 'calendar') {
-          await db.from('entries').update({ ...fields, product_id: productId, updated_by: it.user_id, verified_at: new Date().toISOString() }).eq('id', linked[0].id)
+          await db.from('entries').update({ ...fields, product_id: productId, brand_id: brandId, updated_by: it.user_id, verified_at: new Date().toISOString() }).eq('id', linked[0].id)
           touched.push(linked[0].id)
           out.applied++
         }
@@ -249,7 +253,7 @@ async function syncCalendar(it: Integration, token: string, who: string): Promis
         if (twin) await db.from('entries').update({ verified_at: new Date().toISOString() }).eq('id', twin.id)
         else {
           const { data: created } = await db.from('entries').insert({
-            company_id: it.company_id, product_id: productId, ...fields, source: 'calendar', source_label: label, source_meta: meta,
+            company_id: it.company_id, brand_id: brandId, product_id: productId, ...fields, source: 'calendar', source_label: label, source_meta: meta,
             confidence: 0.9, created_by: it.user_id, updated_by: it.user_id, verified_at: new Date().toISOString(),
           }).select('id').single()
           if (created) {
@@ -259,7 +263,7 @@ async function syncCalendar(it: Integration, token: string, who: string): Promis
         }
       } else {
         const { error } = await db.from('proposals').insert({
-          company_id: it.company_id, kind: 'new', source: 'calendar', source_label: label, source_user: it.user_id, product_id: productId,
+          company_id: it.company_id, kind: 'new', source: 'calendar', source_label: label, source_user: it.user_id, brand_id: brandId, product_id: productId,
           payload: { ...fields, new_product: null }, summary: title, confidence: kind === 'business' ? 0.9 : 0.5,
           evidence: 'Wydarzenie z kalendarza — nie było jasne, czy dotyczy całej firmy.',
           dedupe_key: await sha256(`cal|${e.id}`),

@@ -4,6 +4,8 @@ import { Page, useChanged } from '../app/Shell'
 import { ClaudeSetup, CodeLine, useConnections, useGoogleConnect } from '../app/connect'
 import { GoogleG } from '../app/Onboarding'
 import { useCompany, useQuery, useSession } from '../app/session'
+import { useBrands } from '../app/brands'
+import { BrandSelect } from '../components/kb'
 import { Badge, Button, cx, Field, IconBtn, Spinner, useFeedback } from '../components/ui'
 import { fmtWhen } from '../lib/format'
 import { leave } from '../lib/motion'
@@ -17,6 +19,7 @@ interface WebSource {
   stats: { pages?: number; facts?: number; proposed?: number }
   last_error: string | null
   last_crawled_at: string | null
+  brand_id: string | null
 }
 
 export default function IntegrationsPage() {
@@ -26,7 +29,9 @@ export default function IntegrationsPage() {
   const { connect, busy } = useGoogleConnect()
   const { fail, toast, confirm } = useFeedback()
   const [syncing, setSyncing] = useState(false)
-  const [url, setUrl] = useState(company.website ?? '')
+  const [url, setUrl] = useState('')
+  const [siteBrand, setSiteBrand] = useState<string | null>(null)
+  const { label: brandLabel } = useBrands()
   const [adding, setAdding] = useState(false)
 
   const sites = useQuery(async () => {
@@ -66,7 +71,7 @@ export default function IntegrationsPage() {
   const addSite = async () => {
     setAdding(true)
     try {
-      await api('import_site', { company_id: company.id, url })
+      await api('import_site', { company_id: company.id, url, brand_id: siteBrand })
       toast('Czytam stronę. Produkty i fakty pojawią się w bazie w ciągu kilku minut.')
       sites.reload()
     } catch (e) {
@@ -150,13 +155,14 @@ export default function IntegrationsPage() {
         <header className="integ__head">
           <span className="integ__ico"><Globe size={22} /></span>
           <div className="grow">
-            <h2>Strona firmy</h2>
-            <p>AI czyta strony witryny, samo zakłada produkty i fakty, a potem raz na dobę sprawdza, co się zmieniło.</p>
+            <h2>Strony marek</h2>
+            <p>Każda marka może mieć swoją stronę. AI czyta witrynę, zakłada produkty i fakty w tej marce, a potem raz na dobę sprawdza, co się zmieniło.</p>
           </div>
         </header>
         {canManage && (
           <div className="integ__site">
-            <input className="input" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://twoja-firma.pl" onKeyDown={(e) => e.key === 'Enter' && url.trim() && addSite()} />
+            <BrandSelect value={siteBrand} onChange={setSiteBrand} groupLabel="Strona całej grupy" />
+            <input className="input" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://marka.pl" onKeyDown={(e) => e.key === 'Enter' && url.trim() && addSite()} />
             <Button variant="primary" busy={adding} disabled={!url.trim()} onClick={addSite}>Importuj</Button>
           </div>
         )}
@@ -166,6 +172,7 @@ export default function IntegrationsPage() {
               <div key={s.id} data-id={s.id} className="tokens__row">
                 {s.status === 'ready' ? <CircleCheck size={16} /> : s.status === 'error' ? <TriangleAlert size={16} /> : <Spinner size={14} />}
                 <b className="truncate">{s.url.replace(/^https?:\/\//, '').replace(/\/$/, '')}</b>
+                <span className="tag">{brandLabel(s.brand_id)}</span>
                 <span className="muted grow truncate">
                   {s.status === 'error' ? s.last_error
                     : `${s.stats.pages ?? 0} ${'str.'} · ${s.stats.facts ?? 0} ${'faktów'}` +

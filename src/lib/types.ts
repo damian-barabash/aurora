@@ -7,6 +7,8 @@ export interface Profile {
   avatar_url: string | null
   is_moderator: boolean
   onboarding: { closed_at?: string; claude_done?: boolean; hidden?: boolean }
+  /** ostatnia wersja aplikacji, której okno „Co nowego” użytkownik już zobaczył */
+  seen_version: string | null
 }
 
 export interface Company {
@@ -19,6 +21,23 @@ export interface Company {
   settings: { auto_apply?: boolean; stale_days?: number }
   role: Role
 }
+
+/** Marka w firmie (holdingu). Wpisy i produkty bez marki należą do całej grupy. */
+export interface Brand {
+  id: string
+  company_id: string
+  name: string
+  slug: string
+  cluster: string
+  aliases: string[]
+  summary: string
+  website: string | null
+  logo_path: string | null
+  position: number
+  status: 'active' | 'archived'
+}
+
+export type Visibility = 'public' | 'internal' | 'confidential'
 
 export interface Collection {
   id: string
@@ -34,6 +53,7 @@ export interface Product {
   id: string
   company_id: string
   collection_id: string | null
+  brand_id: string | null
   name: string
   kind: string
   icon: string
@@ -60,6 +80,8 @@ export interface Entry {
   id: string
   company_id: string
   product_id: string | null
+  brand_id: string | null
+  visibility: Visibility
   type: EntryType
   title: string
   body: string
@@ -84,6 +106,8 @@ export interface Proposal {
   source: Source
   source_label: string | null
   source_user: string | null
+  brand_id: string | null
+  batch_id: string | null
   product_id: string | null
   entry_id: string | null
   payload: {
@@ -94,6 +118,9 @@ export interface Proposal {
     effective_to: string | null
     importance: number
     new_product?: { name: string; summary: string } | null
+    new_brand?: { name: string } | null
+    visibility?: Visibility
+    flag?: 'personal' | null
   }
   summary: string
   evidence: string
@@ -121,6 +148,7 @@ export interface FileRow {
   company_id: string
   product_id: string | null
   entry_id: string | null
+  brand_id: string | null
   kind: 'image' | 'logo' | 'document' | 'brand'
   name: string
   path: string
@@ -131,8 +159,11 @@ export interface FileRow {
   created_at: string
 }
 
-export interface Brand {
+/** Profil marki (strategia, identyfikacja, ton). `brand_id = null` = profil całej grupy. */
+export interface BrandProfile {
+  id?: string
   company_id: string
+  brand_id: string | null
   tagline: string
   strategy: string
   audience: string

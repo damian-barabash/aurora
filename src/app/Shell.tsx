@@ -10,8 +10,10 @@ import { Avatar, Button, cx, Empty, Field, IconBtn, Menu, MenuItem, Modal, useFe
 import { fmtWhen } from '../lib/format'
 import { leave } from '../lib/motion'
 import { api, supabase } from '../lib/supabase'
-import type { Chat, Collection, Notification } from '../lib/types'
+import type { Brand, Chat, Collection, Notification } from '../lib/types'
+import { BrandMark, useBrands } from './brands'
 import { Onboarding } from './Onboarding'
+import { APP_VERSION, openWhatsNew, WhatsNew } from './WhatsNew'
 import { useSession } from './session'
 
 // ───────── общие данные панели: чаты, счётчики, сигнал «данные изменились» ─────────
@@ -21,6 +23,9 @@ interface PanelCtx {
   reloadChats(): Promise<void>
   pending: number
   reloadCounts(): Promise<void>
+  /** marki bieżącej firmy (także zarchiwizowane — do podpisów starych wpisów) */
+  brands: Brand[]
+  reloadBrands(): Promise<void>
 }
 const PanelContext = createContext<PanelCtx>(null!)
 export const usePanel = () => useContext(PanelContext)
@@ -42,6 +47,7 @@ export function Shell() {
   const { toast } = useFeedback()
   const [chats, setChats] = useState<Chat[]>([])
   const [pending, setPending] = useState(0)
+  const [brands, setBrands] = useState<Brand[]>([])
   const [drawer, setDrawer] = useState(false)
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('aurora_side') === '0')
   const [onboardingStep, setOnboardingStep] = useState<'mail' | 'claude' | null>(null)
@@ -63,11 +69,19 @@ export function Shell() {
     setPending(count ?? 0)
   }, [company])
 
+  const reloadBrands = useCallback(async () => {
+    if (!company) return
+    const { data } = await supabase.from('brands').select('*').eq('company_id', company.id).order('position').order('name')
+    setBrands((data ?? []) as Brand[])
+  }, [company])
+
   useEffect(() => {
     reloadChats()
     reloadCounts()
-  }, [reloadChats, reloadCounts])
+    reloadBrands()
+  }, [reloadChats, reloadCounts, reloadBrands])
   useChanged(reloadCounts)
+  useChanged(reloadBrands)
   useEffect(() => setDrawer(false), [loc.pathname, loc.search])
 
   // возврат с экрана согласия Google
@@ -84,7 +98,7 @@ export function Shell() {
     emitChanged()
   }, [params, setParams, toast])
 
-  const ctx = useMemo(() => ({ chats, reloadChats, pending, reloadCounts }), [chats, reloadChats, pending, reloadCounts])
+  const ctx = useMemo(() => ({ chats, reloadChats, pending, reloadCounts, brands, reloadBrands }), [chats, reloadChats, pending, reloadCounts, brands, reloadBrands])
 
   if (loading || !session || !profile) return <div className="boot"><Mark size={34} /></div>
 
@@ -111,6 +125,7 @@ export function Shell() {
         </main>
       </div>
       {company && <Onboarding step={onboardingStep} setStep={setOnboardingStep} />}
+      <WhatsNew />
     </PanelContext.Provider>
   )
 }
@@ -227,6 +242,7 @@ function Sidebar({ collapsed, onCollapse }: { collapsed: boolean; onCollapse(): 
               <MenuItem key={m.to} icon={m.icon} onClick={() => { close(); nav(m.to) }}>{m.label}</MenuItem>
             ))}
             {(inChat || inKb) && <div className="menu__sep" />}
+            <MenuItem icon={<Sparkles size={18} />} onClick={() => { close(); openWhatsNew() }}>Co nowego · v{APP_VERSION}</MenuItem>
             <MenuItem icon={<LogOut size={18} />} onClick={() => { close(); signOut() }}>Wyloguj</MenuItem>
           </>
         )}
@@ -278,6 +294,7 @@ function ChatList() {
 
 function KbNav() {
   const { company, canManage } = useSession()
+  const { clusters, group } = useBrands()
   const nav = useNavigate()
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<Collection | null>(null)
@@ -294,26 +311,48 @@ function KbNav() {
   const [params] = useSearchParams()
   const [collections, setCollections] = useState<Collection[]>([])
   const [counts, setCounts] = useState<Record<string, number>>({})
+  const [brandCounts, setBrandCounts] = useState<Record<string, number>>({})
   const load = useCallback(async () => {
     if (!company) return
-    const [{ data: cols }, { data: prods }] = await Promise.all([
+    const [{ data: cols }, { data: prods }, { data: entries }] = await Promise.all([
       supabase.from('collections').select('*').eq('company_id', company.id).order('position'),
-      supabase.from('products').select('collection_id').eq('company_id', company.id).neq('status', 'archived'),
+      supabase.from('products').select('collection_id, brand_id').eq('company_id', company.id).neq('status', 'archived'),
+      supabase.from('entries').select('brand_id').eq('company_id', company.id).is('product_id', null).neq('status', 'archived'),
     ])
     setCollections((cols ?? []) as Collection[])
     const map: Record<string, number> = { all: prods?.length ?? 0 }
     for (const p of prods ?? []) if (p.collection_id) map[p.collection_id] = (map[p.collection_id] ?? 0) + 1
     setCounts(map)
+    // przy marce: produkty + wpisy o samej marce
+    const byBrand: Record<string, number> = {}
+    for (const p of prods ?? []) byBrand[p.brand_id ?? 'group'] = (byBrand[p.brand_id ?? 'group'] ?? 0) + 1
+    for (const e of entries ?? []) byBrand[e.brand_id ?? 'group'] = (byBrand[e.brand_id ?? 'group'] ?? 0) + 1
+    setBrandCounts(byBrand)
   }, [company])
   useEffect(() => { load() }, [load])
   useChanged(load)
   const onList = loc.pathname === '/app/kb'
   const current = params.get('c')
+  const currentBrand = params.get('b')
   const icon = (name: string) => name === 'grid' ? <LayoutGrid size={18} /> : name === 'book' ? <BookOpen size={18} /> : <Folder size={18} />
   return (
     <>
+      <div className="side__label">Marki</div>
+      <Link to="/app/kb?b=group" className={cx('subi subi--brand', onList && currentBrand === 'group' && 'is-on is-soft')}>
+        <BrandMark size={22} group={group} /><span>{group}</span><i>{brandCounts.group ?? 0}</i>
+      </Link>
+      {clusters.map((cl) => (
+        <div key={cl.name} className="side__cluster">
+          <div className="side__sublabel">{cl.name}</div>
+          {cl.brands.map((b) => (
+            <Link key={b.id} to={`/app/kb?b=${b.id}`} className={cx('subi subi--brand', onList && currentBrand === b.id && 'is-on is-soft')}>
+              <BrandMark brand={b} size={22} /><span>{b.name}</span><i>{brandCounts[b.id] ?? 0}</i>
+            </Link>
+          ))}
+        </div>
+      ))}
       <div className="side__label">Kolekcje</div>
-      <Link to="/app/kb" className={cx('subi', onList && !current && 'is-on is-soft')}>
+      <Link to="/app/kb" className={cx('subi', onList && !current && !currentBrand && 'is-on is-soft')}>
         <Folder size={18} /><span>Wszystkie produkty</span><i>{counts.all ?? 0}</i>
       </Link>
       {collections.map((c) => (
@@ -342,7 +381,7 @@ function KbNav() {
         ['identity', <Sparkles size={18} />, 'Identyfikacja'],
         ['tone', <MessageSquare size={18} />, 'Tone of voice'],
       ].map(([key, ico, label]) => (
-        <NavLink key={key as string} to={`/app/brand/${key}`} className={({ isActive }) => cx('subi', isActive && 'is-on is-soft')}>
+        <NavLink key={key as string} to={`/app/brand/${key}${currentBrand ? `?b=${currentBrand}` : ''}`} className={({ isActive }) => cx('subi', isActive && 'is-on is-soft')}>
           {ico}<span>{label}</span>
         </NavLink>
       ))}

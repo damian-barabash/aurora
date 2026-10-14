@@ -10,10 +10,11 @@ import type { FileRow } from '../lib/types'
 import { cx, IconBtn, Spinner, useFeedback } from './ui'
 
 /** Зона загрузки + сетка файлов. Используется на странице продукта, в «Файлах» и в айдентике бренда. */
-export function FileGrid({ files, onChange, productId, kind, accept, hint }: {
+export function FileGrid({ files, onChange, productId, brandId, kind, accept, hint }: {
   files: FileRow[]
   onChange(): void
   productId?: string | null
+  brandId?: string | null
   kind?: FileRow['kind']
   accept?: string
   hint?: string
@@ -35,7 +36,7 @@ export function FileGrid({ files, onChange, productId, kind, accept, hint }: {
     setUploading(items.length)
     for (const file of items) {
       try {
-        await uploadFile(company.id, file, { productId, kind })
+        await uploadFile(company.id, file, { productId, brandId, kind })
       } catch (e) {
         fail(`${file.name}: ${e instanceof Error ? e.message : e}`)
       }

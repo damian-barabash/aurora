@@ -1,40 +1,53 @@
-import { Plus, Trash2 } from 'lucide-react'
+import { ArrowUpRight, Globe, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { BrandMark, useBrands } from '../app/brands'
 import { Page } from '../app/Shell'
 import { useCompany, useQuery, useSession } from '../app/session'
 import { FileGrid } from '../components/FileGrid'
+import { BrandSelect } from '../components/kb'
 import { Button, copyText, Field, IconBtn, Loading, Tabs, useFeedback } from '../components/ui'
 import { supabase } from '../lib/supabase'
-import type { Brand, FileRow } from '../lib/types'
+import type { BrandProfile, FileRow } from '../lib/types'
 
 type Section = 'strategy' | 'identity' | 'tone'
 
 export default function BrandPage() {
   const company = useCompany()
   const { canManage } = useSession()
+  const { byId, group } = useBrands()
   const { section = 'strategy' } = useParams() as { section?: Section }
+  const [params] = useSearchParams()
+  const raw = params.get('b')
+  /** `null` = profil całej grupy */
+  const brandId = raw && raw !== 'group' ? raw : null
+  const brand = brandId ? byId.get(brandId) ?? null : null
+  const scope = brandId ?? 'group'
   const nav = useNavigate()
-  const { fail, toast } = useFeedback()
-  const [f, setF] = useState<Brand | null>(null)
+  const { fail, toast, confirm } = useFeedback()
+  const [f, setF] = useState<BrandProfile | null>(null)
   const [dirty, setDirty] = useState(false)
   const [busy, setBusy] = useState(false)
 
   const { data, loading, reload } = useQuery(async () => {
-    const [{ data: brand }, { data: files }] = await Promise.all([
-      supabase.from('brand').select('*').eq('company_id', company.id).maybeSingle(),
-      supabase.from('files').select('*').eq('company_id', company.id).in('kind', ['logo', 'brand']).order('created_at', { ascending: false }),
-    ])
-    return { brand: brand as Brand | null, files: (files ?? []) as FileRow[] }
-  }, [company.id])
+    let profile = supabase.from('brand').select('*').eq('company_id', company.id)
+    let files = supabase.from('files').select('*').eq('company_id', company.id).in('kind', ['logo', 'brand'])
+    profile = brandId ? profile.eq('brand_id', brandId) : profile.is('brand_id', null)
+    files = brandId ? files.eq('brand_id', brandId) : files.is('brand_id', null)
+    const [{ data: row }, { data: list }] = await Promise.all([profile.maybeSingle(), files.order('created_at', { ascending: false })])
+    return { brand: row as BrandProfile | null, files: (list ?? []) as FileRow[] }
+  }, [company.id, brandId])
 
   useEffect(() => {
+    setDirty(false)
+  }, [brandId])
+  useEffect(() => {
     if (data && !dirty) {
-      setF(data.brand ?? { company_id: company.id, tagline: '', strategy: '', audience: '', tone: '', dos: '', donts: '', colors: [], fonts: [], updated_at: '' })
+      setF(data.brand ?? { company_id: company.id, brand_id: brandId, tagline: '', strategy: '', audience: '', tone: '', dos: '', donts: '', colors: [], fonts: [], updated_at: '' })
     }
-  }, [data, dirty, company.id])
+  }, [data, dirty, company.id, brandId])
 
-  const set = useCallback(<K extends keyof Brand>(key: K, value: Brand[K]) => {
+  const set = useCallback(<K extends keyof BrandProfile>(key: K, value: BrandProfile[K]) => {
     setF((cur) => (cur ? { ...cur, [key]: value } : cur))
     setDirty(true)
   }, [])
@@ -42,13 +55,17 @@ export default function BrandPage() {
   const save = async () => {
     if (!f) return
     setBusy(true)
-    const { updated_at: _skip, ...row } = f
+    const { updated_at: _skip, id, ...row } = f
     void _skip
-    const { error } = await supabase.from('brand').upsert({ ...row, company_id: company.id, updated_at: new Date().toISOString() })
+    const values = { ...row, company_id: company.id, brand_id: brandId, updated_at: new Date().toISOString() }
+    const { error } = id
+      ? await supabase.from('brand').update(values).eq('id', id)
+      : await supabase.from('brand').insert(values)
     setBusy(false)
     if (error) return fail(error.message)
     setDirty(false)
-    toast('Marka zapisana. AI już uwzględnia zmiany.')
+    reload()
+    toast(`${brand?.name ?? 'Profil grupy'} — zapisano. AI już uwzględnia zmiany.`)
   }
 
   if ((loading && !data) || !f) return <Loading />
@@ -59,15 +76,26 @@ export default function BrandPage() {
   )
 
   return (
-    <Page className="page--narrow" crumb={<><Link to="/app/kb">Baza wiedzy</Link>/<b>O marce</b></>}>
+    <Page className="page--narrow" crumb={<><Link to="/app/kb">Baza wiedzy</Link>/<Link to={`/app/kb?b=${scope}`}>{brand?.name ?? group}</Link>/<b>O marce</b></>}>
       <div className="page__head">
         <div>
-          <h1>O marce</h1>
-          <p>Stąd AI bierze charakter i zasady: jak brzmieć, dla kogo pisać i jak wyglądać.</p>
+          <h1>{brand ? brand.name : `${group} — profil grupy`}</h1>
+          <p>{brand
+            ? 'Stąd AI bierze charakter tej marki: jak brzmieć, dla kogo pisać i jak wyglądać. Zasady grupy obowiązują dodatkowo.'
+            : 'Zasady wspólne dla wszystkich marek. AI łączy je z profilem konkretnej marki.'}</p>
         </div>
         {canManage && <Button variant="primary" busy={busy} disabled={!dirty} onClick={save}>Zapisz</Button>}
       </div>
-      <Tabs value={section} onChange={(s) => nav(`/app/brand/${s}`)} tabs={[
+      <div className="brandpick">
+        <BrandMark brand={brand} group={group} size={40} />
+        <BrandSelect value={brandId} groupLabel={`${group} — profil grupy`} onChange={async (id) => {
+          if (dirty && !(await confirm({ title: 'Niezapisane zmiany', text: 'Przejść do innej marki bez zapisywania?', action: 'Przejdź' }))) return
+          nav(`/app/brand/${section}?b=${id ?? 'group'}`)
+        }} />
+        {brand?.website && <a className="btn btn--quiet" href={brand.website} target="_blank" rel="noreferrer"><Globe size={16} /><span>Strona</span></a>}
+        <Link className="btn btn--quiet" to={`/app/kb?b=${scope}`}><span>Produkty i wiedza</span><ArrowUpRight size={16} /></Link>
+      </div>
+      <Tabs value={section} onChange={(s) => nav(`/app/brand/${s}?b=${scope}`)} tabs={[
         { value: 'strategy', label: 'Strategia' },
         { value: 'identity', label: 'Identyfikacja' },
         { value: 'tone', label: 'Tone of voice' },
@@ -115,7 +143,7 @@ export default function BrandPage() {
             </div>
             <div className="field">
               <span className="field__label">Logotypy i grafika firmowa</span>
-              <FileGrid files={data!.files} kind="logo" onChange={reload} accept="image/*,.svg,.pdf,.eps,.ai"
+              <FileGrid files={data!.files} kind="logo" brandId={brandId} onChange={reload} accept="image/*,.svg,.pdf,.eps,.ai"
                 hint="SVG, PNG, PDF — wszystko, co zespół ma brać tylko stąd." />
             </div>
           </>
