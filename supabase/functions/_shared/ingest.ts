@@ -70,6 +70,8 @@ interface Item {
   confidence: number
   relation: 'new' | 'update' | 'conflict' | 'duplicate'
   existing: string | null
+  /** tekst wprost mówi, że ten termin przeniesiono albo odwołano */
+  change?: 'rescheduled' | 'cancelled' | null
   evidence: string
 }
 
@@ -96,19 +98,25 @@ Never copy greetings or signatures. Never quote the source — restate neutrally
 
 OLD VS NEW: compare every date with TODAY. Do not extract events that already ended. When the text gives an old and a new value, keep only the new one. If EXISTING ENTRIES already hold a newer value than the text, the relation is "duplicate", never "update".
 
+DATES ADD UP, THEY DO NOT REPLACE EACH OTHER. Products are often held many times: events, trainings, trips, courses, workshops, webinars, tastings, races, shows. Every date (edition, term, session) is its own item of type "date" — one item per date, never merge several dates into one item.
+- A date of the same product that is not in EXISTING ENTRIES is a further edition: relation "new". A different day, place or hours does NOT make it a "conflict" or an "update" of another date. A schedule or calendar listing many dates = many "new" items.
+- The same product on the same day already in EXISTING ENTRIES → "duplicate" (or "update" when the text definitively changes its details, e.g. hours or price of THAT day).
+- "update" of an existing date to another day ONLY when the text explicitly says THAT edition was moved/postponed/rescheduled (e.g. "przeniesione z 30.10 na 6.11", "nowy termin zamiast…") → set "change": "rescheduled". When the text explicitly says an edition was cancelled → "update" with "change": "cancelled" and say so in title and body. Otherwise "change": null.
+- When unsure whether a date replaces another one, treat it as a further edition ("new"), not as a conflict.
+
 "confirmed": true only when the text states a decision/fact definitively (e.g. "we confirm", "from 1 Nov the price is", published on the company website). Proposals, "maybe", questions → false.
 "importance": 0 trivial, 1 normal, 2 important for the whole team, 3 critical/urgent announcement.
 "type": one of fact | price | date | news | announcement | faq | link. "announcement" = message to the whole team, "news" = something that happened.
 "relation" compares with EXISTING ENTRIES (each shows its brand and product):
 - "duplicate": the base already says the same → give "existing" id
 - "update": the same subject, the new text definitively replaces the old value → give "existing" id
-- "conflict": the same subject but a different value and it is NOT clear which one is right → give "existing" id
-- "new": nothing similar exists. An entry of ANOTHER brand is never the same subject.
+- "conflict": the same subject but a different value and it is NOT clear which one is right → give "existing" id. Two different dates of a product are two subjects, not a conflict.
+- "new": nothing similar exists, or it is another edition/date of an existing product. An entry of ANOTHER brand is never the same subject.
 "title": short (max 80 chars), specific, names the brand or product when useful. "body": 1–4 full sentences with all concrete values (numbers, currency, dates). Write title, body and evidence in Polish (keep names unchanged).
 "evidence": one neutral sentence explaining where this comes from, WITHOUT names of private people and without quoting.
 Dates as YYYY-MM-DD. If the year is missing, choose the nearest future date relative to TODAY. "effective_from" ONLY for a concrete date in the text — never TODAY by default. Use type "date" only for events and deadlines on a specific day.
 
-Return ONLY JSON: {"items":[{"brand":string,"product":string|null,"product_summary":string,"type":string,"title":string,"body":string,"effective_from":string|null,"effective_to":string|null,"importance":1,"confirmed":true,"personal":false,"visibility":"internal","confidence":0.0,"relation":"new","existing":string|null,"evidence":string}]}
+Return ONLY JSON: {"items":[{"brand":string,"product":string|null,"product_summary":string,"type":string,"title":string,"body":string,"effective_from":string|null,"effective_to":string|null,"importance":1,"confirmed":true,"personal":false,"visibility":"internal","confidence":0.0,"relation":"new","existing":string|null,"change":null,"evidence":string}]}
 If there is nothing worth storing return {"items":[]}. Most private emails contain nothing — that is the expected answer.`
 
 export async function embedEntries(ids: string[]) {
@@ -163,7 +171,7 @@ export async function ingestText(input: IngestInput): Promise<IngestResult> {
     hinted ? `THE SENDER SUGGESTS BRAND: ${hinted.name}` : input.brandHint ? `THE SENDER SUGGESTS BRAND: ${input.brandHint}` : '',
     input.productHint ? `THE SENDER SUGGESTS PRODUCT: ${input.productHint}` : '',
     `BRANDS AND THEIR PRODUCTS:\n${catalogText(cat)}`,
-    `EXISTING ENTRIES (brand › product, source, last update):\n${[...refs].map(([ref, e]) => `${ref} [${whereOf(e)}] (${e.source}, ${String(e.updated_at).slice(0, 10)}) ${e.title}: ${String(e.body).slice(0, 300)}`).join('\n') || '(none)'}`,
+    `EXISTING ENTRIES (brand › product, type, date, source, last update):\n${[...refs].map(([ref, e]) => `${ref} [${whereOf(e)}] (${e.type}${e.effective_from ? `, ${e.effective_from}${e.effective_to && e.effective_to !== e.effective_from ? '…' + e.effective_to : ''}` : ''}, ${e.source}, ${String(e.updated_at).slice(0, 10)}) ${e.title}: ${String(e.body).slice(0, 300)}`).join('\n') || '(none)'}`,
     `TEXT:\n"""\n${text}\n"""`,
   ].filter(Boolean).join('\n\n')
 
@@ -243,6 +251,16 @@ export async function ingestText(input: IngestInput): Promise<IngestResult> {
     const evidence = String(it.evidence ?? '').slice(0, 300)
     const where = brandLabel(cat, brandId, productName ?? newProduct?.name)
 
+    // terminy się sumują: inny dzień tego samego produktu to kolejna edycja, a nie zmiana ani konflikt.
+    // Starszy termin zastępujemy tylko wtedy, gdy tekst wprost mówi, że go przeniesiono albo odwołano.
+    const moved = it.change === 'rescheduled' || it.change === 'cancelled'
+    if (ref && (relation === 'update' || relation === 'conflict') && fields.type === 'date' && ref.type === 'date'
+      && fields.effective_from && ref.effective_from && fields.effective_from !== ref.effective_from && !moved) {
+      relation = 'new'
+      ref = null
+    }
+    if (ref && moved && (relation === 'update' || relation === 'conflict')) notes.push(it.change === 'cancelled' ? 'termin odwołany' : 'termin przeniesiony')
+
     // zapora przed dublami: model bywa pewny, że fakt jest „nowy”, choć baza już go zna innymi słowami
     if (relation === 'new') {
       let twin = db.from('entries').select('id, title, brand_id, product:products(name)').eq('company_id', input.companyId).neq('status', 'archived')
@@ -261,15 +279,9 @@ export async function ingestText(input: IngestInput): Promise<IngestResult> {
           const sameDates = hit.effective_from === fields.effective_from && hit.effective_to === fields.effective_to
           const sameProduct = !productId || !hit.product_id || hit.product_id === productId
           if (hit.cos >= 0.955 && sameDates) duplicateOf = hit
-          else if (fields.type === 'date' && hit.type === 'date' && sameProduct && hit.cos >= 0.88) {
-            if (sameDates) duplicateOf = hit
-            else {
-              // ten sam termin z inną datą: nie dopisujemy drugiego, człowiek wybiera właściwy
-              relation = 'conflict'
-              ref = hit
-            }
-          }
-          if (duplicateOf || relation === 'conflict') break
+          // ten sam produkt tego samego dnia = ten sam termin; inny dzień to kolejna edycja i zapisujemy ją obok
+          else if (fields.type === 'date' && hit.type === 'date' && sameProduct && hit.cos >= 0.88 && sameDates) duplicateOf = hit
+          if (duplicateOf) break
         }
       }
       if (duplicateOf) {

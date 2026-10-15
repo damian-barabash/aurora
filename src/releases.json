@@ -1,5 +1,30 @@
 [
   {
+    "version": "0.4.1",
+    "date": "2026-10-15",
+    "icon": "dates",
+    "title": "Nowe terminy dopisują się do starych",
+    "lead": "Kolejny termin wydarzenia nie jest już traktowany jak zmiana daty. AI dopisuje każdy termin obok pozostałych, a datę zmienia tylko wtedy, gdy źródło wprost mówi o przeniesieniu.",
+    "items": [
+      {
+        "title": "Koniec fałszywych konfliktów dat",
+        "text": "Kalendarz ze strony z sześcioma terminami szkolenia to sześć osobnych wpisów, a nie sześć konfliktów z jednym terminem z bazy. Inny dzień, inne miejsce albo inne godziny tego samego produktu to kolejna edycja."
+      },
+      {
+        "title": "Przeniesienie i odwołanie tylko wprost",
+        "text": "Termin w bazie zmienia się, gdy źródło jasno pisze, że go przeniesiono albo odwołano — wtedy w „Do sprawdzenia” widać dopisek „termin przeniesiony” lub „termin odwołany”."
+      },
+      {
+        "title": "Czat podaje wszystkie terminy",
+        "text": "Pytanie o daty produktu daje listę wszystkich nadchodzących edycji po kolei, z miejscem, godzinami i ceną, zamiast jednej, najnowszej daty."
+      },
+      {
+        "title": "Poprawione stare propozycje",
+        "text": "Konflikty dat, które już czekały w „Do sprawdzenia”, zamieniły się w zwykłe nowe terminy — po zatwierdzeniu dopiszą się do bazy, nic nie zastąpią."
+      }
+    ]
+  },
+  {
     "version": "0.4.0",
     "date": "2026-10-14",
     "icon": "reading",

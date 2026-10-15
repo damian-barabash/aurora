@@ -71,10 +71,35 @@ function Reading({ size }: { size: number }) {
   )
 }
 
+/** 0.4.1 — kalendarz, w którym terminy się sumują: kolejne dni zaznaczone obok siebie i plus dla następnego. */
+function Dates({ size }: { size: number }) {
+  const cols = [28, 46, 64, 82]
+  const rows = [54, 70, 86]
+  const marked = new Set(['46,54', '82,54', '28,70', '64,70', '46,86'])
+  return (
+    <svg width={size} height={size} viewBox="0 0 120 120" aria-hidden>
+      <rect x="0" y="0" width="120" height="120" rx="30" fill={INK} />
+      {/* kartka kalendarza */}
+      <rect x="18" y="26" width="84" height="76" rx="10" fill={PAPER} />
+      <path d="M18 36 a10 10 0 0 1 10 -10 h64 a10 10 0 0 1 10 10 v8 h-84 z" fill={ACCENT} />
+      <rect x="36" y="16" width="7" height="16" rx="3.5" fill={PAPER} />
+      <rect x="77" y="16" width="7" height="16" rx="3.5" fill={PAPER} />
+      {/* dni: zaznaczone terminy stoją obok siebie, żaden nie wypiera innego */}
+      {rows.flatMap((y) => cols.map((x) => marked.has(`${x},${y}`)
+        ? <rect key={`${x},${y}`} x={x} y={y} width="12" height="10" rx="3" fill={INK} />
+        : <circle key={`${x},${y}`} cx={x + 6} cy={y + 5} r="2.5" fill={INK} />))}
+      {/* kolejny termin dopisany */}
+      <circle cx="90" cy="92" r="17" fill={ACCENT} stroke={INK} strokeWidth="4" />
+      <path d="M90 84 V100 M82 92 H98" stroke={INK} strokeWidth="4.5" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 export const RELEASE_ICONS: Record<string, (p: { size: number }) => ReactElement> = {
   brands: Brands,
   categories: Categories,
   reading: Reading,
+  dates: Dates,
 }
 
 export function ReleaseIcon({ name, size = 96 }: { name: string; size?: number }) {
